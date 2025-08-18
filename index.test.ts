@@ -113,7 +113,7 @@ test("single-bind resolves to a single value", () => {
 
   factory2.dependsOn = ["factory1"] as const;
 
-  function factory2(value1): number {
+  function factory2(value1: number): number {
     return value1;
   }
 
@@ -199,9 +199,23 @@ test("2nd+-bind resolves to an array of values", () => {
     return "2";
   }
 
+  factory3.dependsOn = [] as const;
+
+  function factory3(): RegExp {
+    return /3/;
+  }
+
+  factory4.dependsOn = [] as const;
+
+  function factory4(): boolean {
+    return true;
+  }
+
   const _1st = container.register("factory", factory1);
 
   expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
+
+  expect(_1st.seal().resolve("factory")).toMatchInlineSnapshot(`1`);
 
   const _2nd = _1st.register("factory", factory2);
 
@@ -216,46 +230,6 @@ test("2nd+-bind resolves to an array of values", () => {
       "2",
     ]
   `);
-});
-
-test("3rd+-bind resolves to an array of values", () => {
-  const runtime = DiRuntime();
-
-  const container = runtime.createContainer();
-
-  factory1.dependsOn = [] as const;
-
-  function factory1(): number {
-    return 1;
-  }
-
-  factory2.dependsOn = [] as const;
-
-  function factory2(): number {
-    return 2;
-  }
-
-  factory3.dependsOn = [] as const;
-
-  function factory3(): string {
-    return "3";
-  }
-
-  factory4.dependsOn = [] as const;
-
-  function factory4(): boolean {
-    return true;
-  }
-
-  const _1st = container.register("factory", factory1);
-
-  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
-
-  const _2nd = _1st.register("factory", factory2);
-
-  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
 
   const _3rd = _2nd.register("factory", factory3);
 
@@ -264,6 +238,14 @@ test("3rd+-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
+  expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
+    [
+      1,
+      "2",
+      /3/,
+    ]
+  `);
+
   const _4th = _2nd.register("factory", factory4);
 
   // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
@@ -271,11 +253,11 @@ test("3rd+-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
-  expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
+  expect(_4th.seal().resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
-      2,
-      "3",
+      "2",
+      /3/,
       true,
     ]
   `);
