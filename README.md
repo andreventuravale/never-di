@@ -1,4 +1,4 @@
-# fun-di
+# never-di
 
 A lightweight, dependency-free, **function-only** dependency injection (DI) container for TypeScript.
 No decorators, no reflection, no classes — just plain functions with strong type safety.
@@ -8,7 +8,7 @@ No decorators, no reflection, no classes — just plain functions with strong ty
 ## Why
 
 Most DI libraries are heavy, rely on decorators or reflection, and introduce runtime magic.  
-`fun-di` was created to provide:
+`never-di` was created to provide:
 
 - **Type-driven DI**: errors are caught at compile time, not runtime.  
 - **Function-only approach**: only factory functions.
@@ -38,7 +38,7 @@ Most DI libraries are heavy, rely on decorators or reflection, and introduce run
 
 ## Comparison
 
-| Feature                   | fun-di             | InversifyJS / tsyringe   |
+| Feature                   | never-di             | InversifyJS / tsyringe   |
 |----------------------------|--------------------|---------------------------|
 | Decorators required        | ❌ No              | ✅ Yes                    |
 | Reflection / metadata      | ❌ No              | ✅ Yes                    |
@@ -55,7 +55,7 @@ Most DI libraries are heavy, rely on decorators or reflection, and introduce run
 ### Basic Example
 
 ```ts
-import { DiRuntime } from "fun-di";
+import { DiRuntime } from "never-di";
 
 const runtime = DiRuntime();
 
@@ -106,7 +106,7 @@ console.log(sealed.resolve("handler")); // ["h1", "h2"]
 
 ## Contributing
 
-fun-di is intentionally minimal.
+never-di is intentionally minimal.
 
 - If you want **extra features** (e.g., class support, different resolver strategies), please **fork the library**.
 - This project will not support classes or reflection-based resolvers by design.
