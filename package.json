@@ -4,7 +4,9 @@
   "description": "A DI library for functions.",
   "main": "index.ts",
   "scripts": {
-    "start": "node --import tsx ./index.ts"
+    "start": "node --import tsx ./index.ts",
+    "test": "vitest --run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "di",
@@ -13,6 +15,7 @@
   "author": "Andre Ventura <andreventuravale@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "tsx": "^4.20.4"
+    "tsx": "^4.20.4",
+    "vitest": "^3.2.4"
   }
 }
