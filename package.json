@@ -1,5 +1,5 @@
 {
-  "name": "nano-di",
+  "name": "just-di",
   "version": "0.0.1",
   "description": "A lightweight, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
@@ -31,16 +31,16 @@
   },
   "keywords": [
     "dependency-injection",
+    "just-di",
     "di",
+    "esm-only",
+    "framework-agnostic",
     "functional-di",
-    "nano-di",
-    "typescript",
-    "typescript-di",
     "injection",
     "ioc",
     "lightweight",
-    "framework-agnostic",
-    "esm-only"
+    "typescript-di",
+    "typescript"
   ],
   "author": "André Vale <andreventuravale@gmail.com>",
   "license": "MIT",
@@ -53,6 +53,6 @@
     "vitest": "^3.2.4"
   },
   "repository": {
-    "url": "https://github.com/andreventuravale/nano-di"
+    "url": "https://github.com/andreventuravale/just-di"
   }
 }
