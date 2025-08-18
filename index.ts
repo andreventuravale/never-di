@@ -36,15 +36,23 @@ export function DiRuntime(): IDiRuntime {
     function register(token: string, factory: IDiFactory): IDiContainer {
       factories.set(token, factory);
 
-      resolvers.set(token, () => {
-        const dependencies = resolveDependencies(token);
-
-        return factory.apply(undefined, dependencies);
-      });
+      resolvers.set(token, () => resolveRecursive(token, new Set()));
 
       return container;
 
-      function resolveDependencies(token: string): unknown[] {
+      function resolveRecursive(
+        token: string,
+        seen: Set<string>,
+        path: string[] = []
+      ): unknown {
+        if (seen.has(token)) {
+          const cyclePath = [...path.slice(path.indexOf(token)), token];
+
+          throw new Error(
+            `cycle detected: ${cyclePath.join(" → ")}`
+          );
+        }
+
         const factory = factories.get(token);
 
         if (typeof factory !== "function") {
@@ -53,22 +61,19 @@ export function DiRuntime(): IDiRuntime {
           );
         }
 
-        if (!factory.dependsOn) return [];
+        seen.add(token);
 
-        return factory.dependsOn.map((dependencyToken) => {
-          const dependencyFactory = factories.get(dependencyToken);
+        path.push(token);
 
-          if (typeof dependencyFactory !== "function") {
-            throw new Error(
-              `token is registered but didn't resolve to a function: ${dependencyToken}`
-            );
-          }
+        const deps =
+          factory.dependsOn?.map((dep) => resolveRecursive(dep, seen, path)) ??
+          [];
 
-          return dependencyFactory.apply(
-            undefined,
-            resolveDependencies(dependencyToken)
-          );
-        });
+        seen.delete(token);
+
+        path.pop();
+
+        return factory(...deps);
       }
     }
 

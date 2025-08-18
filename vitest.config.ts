@@ -11,6 +11,6 @@ export default defineConfig({
       reportOnFailure: true,
     },
     environment: "node",
-    include: ["**/*.vitest.ts"],
+    include: ["**/*.test.ts"],
   }
 });

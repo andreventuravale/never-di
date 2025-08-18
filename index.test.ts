@@ -17,7 +17,7 @@ test("dependency resolution", () => {
 
   const container = runtime.createContainer();
 
-  bar.dependsOn = ["foo"]
+  bar.dependsOn = ["foo"];
 
   function bar(foo: unknown): unknown {
     return foo;
@@ -51,4 +51,30 @@ test.skip("dependency tracking inherently determines the registration order", ()
     .register("foo", () => "foo")
     .register("bar", (foo) => foo)
     .seal();
+});
+
+test("circular dependency is detected via seen set", () => {
+  const runtime = DiRuntime();
+
+  const container = runtime.createContainer();
+
+  a.dependsOn = ["b"];
+
+  function a(b: unknown) {
+    return `a(${b})`;
+  }
+
+  b.dependsOn = ["a"];
+
+  function b(a: unknown) {
+    return `b(${a})`;
+  }
+
+  container.register("a", a).register("b", b);
+
+  const sealed = container.seal();
+
+  expect(() => sealed.resolve("a")).toThrowErrorMatchingInlineSnapshot(
+    `[Error: cycle detected: a → b → a]`
+  );
 });
