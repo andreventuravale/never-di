@@ -1,9 +1,25 @@
 {
   "name": "fun-di",
   "version": "0.0.1",
-  "type": "module",
   "description": "A DI library for factory functions with compile-time accumulative dependency type-checking.",
-  "main": "index.ts",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build:esm": "esbuild index.ts --bundle --format=esm --platform=node --target=node20 --outfile=dist/index.js --sourcemap",
     "build:types": "tsc -p tsconfig.build.json",
@@ -14,8 +30,17 @@
     "test": "vitest --run"
   },
   "keywords": [
+    "dependency-injection",
     "di",
-    "ioc"
+    "functional-di",
+    "fun-di",
+    "typescript",
+    "typescript-di",
+    "injection",
+    "ioc",
+    "lightweight",
+    "framework-agnostic",
+    "esm-only"
   ],
   "author": "André Vale <andreventuravale@gmail.com>",
   "license": "MIT",
