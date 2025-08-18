@@ -1,14 +1,20 @@
+type ElementType<T> = T extends readonly (infer U)[] ? U : T;
+
+type EnforceSame<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? A
+    : never
+  : never;
+
 type Reconcile<T> = { [K in keyof T]: T[K] } & {};
 
-type Assign<R, K extends string, V> = K extends keyof R
-  ? Reconcile<Omit<R, K> & { [P in K]: Push<R[K], V> }>
+type AssignArray<R, K extends string, V> = K extends keyof R
+  ? Reconcile<
+      Omit<R, K> & {
+        [P in K]: EnforceSame<ElementType<R[K]>, V>[];
+      }
+    >
   : Reconcile<R & { [P in K]: V }>;
-
-type Push<Existing, New> = Existing extends readonly [...infer R]
-  ? [...R, New]
-  : Existing extends any[]
-  ? [...Existing, New]
-  : [Existing, New];
 
 export interface IDiFactory<
   Output = unknown,
@@ -30,7 +36,7 @@ export interface IDiContainer<Registry = {}> {
     factory: IDiFactory<Output, Input, Dependencies> & {
       dependsOn?: Dependencies;
     }
-  ): IDiContainer<Assign<Registry, Token, Output>>;
+  ): IDiContainer<AssignArray<Registry, Token, Output>>;
 
   seal(): IDiSealedContainer<Reconcile<Registry>>;
 }
@@ -51,7 +57,7 @@ export function DiRuntime(): IDiRuntime {
   function createContainer(): IDiContainer {
     const factories = new Map<string, IDiFactory[]>();
 
-    const resolvers = new Map<string, IDiFactory>();
+    const resolvers = new Map<string, () => unknown>();
 
     const container = {
       register,
@@ -72,11 +78,11 @@ export function DiRuntime(): IDiRuntime {
         factories.set(token, [factory]);
       }
 
-      resolvers.set(token, () => _resolveToken(token, new Set(), []));
+      resolvers.set(token, () => resolveToken(token, new Set(), []));
 
       return container as IDiContainer;
 
-      function _resolveToken(
+      function resolveToken(
         token: string,
         seen: Set<string>,
         path: string[]
@@ -84,21 +90,22 @@ export function DiRuntime(): IDiRuntime {
         if (seen.has(token)) {
           const cyclePath = [...path.slice(path.indexOf(token)), token];
 
-          throw new Error(`cycle detected: ${cyclePath.join(" → ")}`);
+          throw new Error(`cycle detected: ${cyclePath.join(" > ")}`);
         }
 
-        const list = factories.get(token) as IDiFactory[];
+        const factory = factories.get(token) as IDiFactory[];
 
         seen.add(token);
 
         path.push(token);
 
-        const results = list.map((factory) => {
+        const results = factory.map((factory) => {
           const dependencies =
-            factory.dependsOn?.map((dep) => _resolveToken(dep, seen, path)) ??
-            [];
+            factory.dependsOn?.map((dependency) =>
+              resolveToken(dependency, seen, path)
+            ) ?? [];
 
-          return factory(...(dependencies as unknown[]));
+          return factory.apply(undefined, dependencies);
         });
 
         seen.delete(token);
@@ -112,20 +119,18 @@ export function DiRuntime(): IDiRuntime {
     function seal(): IDiSealedContainer {
       const sealedResolvers = new Map(resolvers.entries());
 
-      const sealedContainer: IDiSealedContainer = {
-        resolve,
-      };
+      const sealedContainer: IDiSealedContainer = { resolve };
 
       return sealedContainer;
 
       function resolve<T>(token: string): T {
-        const resolver = sealedResolvers.get(token) as T;
+        const resolver = sealedResolvers.get(token);
 
-        if (typeof resolver !== "function") {
+        if (!resolver) {
           throw new Error(`token is not registered: ${token}`);
         }
 
-        return resolver();
+        return resolver() as T;
       }
     }
   }

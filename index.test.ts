@@ -83,7 +83,7 @@ test("circular dependency is detected via seen set", () => {
 
   expect(() =>
     container.seal().resolve("a")
-  ).toThrowErrorMatchingInlineSnapshot(`[Error: cycle detected: a → b → a]`);
+  ).toThrowErrorMatchingInlineSnapshot(`[Error: cycle detected: a > b > a]`);
 });
 
 test("token does not exist", () => {
@@ -100,7 +100,89 @@ test("token does not exist", () => {
 
 type RegistryOf<C> = C extends IDiContainer<infer R> ? R : never;
 
-test("multi-bind resolves to array of values in registration order", () => {
+test("single-bind resolves to a single value", () => {
+  const runtime = DiRuntime();
+
+  const container = runtime.createContainer();
+
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
+    return 1;
+  }
+
+  factory2.dependsOn = ["factory1"] as const;
+
+  function factory2(value1): number {
+    return value1;
+  }
+
+  const _1st = container.register("factory1", factory1);
+
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory1: number }>();
+
+  const _2nd = _1st.register("factory2", factory2);
+
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory1: number;
+    factory2: number;
+  }>();
+
+  expect(_2nd.seal().resolve("factory1")).toMatchInlineSnapshot(`1`);
+
+  expect(_2nd.seal().resolve("factory2")).toMatchInlineSnapshot(`1`);
+});
+
+test("multi-bind resolves to an array of values", () => {
+  const runtime = DiRuntime();
+
+  const container = runtime.createContainer();
+
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
+    return 1;
+  }
+
+  factory2.dependsOn = [] as const;
+
+  function factory2(): number {
+    return 2;
+  }
+
+  factory3.dependsOn = [] as const;
+
+  function factory3(): string {
+    return "3";
+  }
+
+  const _1st = container.register("factory", factory1);
+
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
+
+  const _2nd = _1st.register("factory", factory2);
+
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  const _3rd = _2nd.register("factory", factory3);
+
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
+    [
+      1,
+      2,
+      "3",
+    ]
+  `);
+});
+
+test("2nd+-bind resolves to an array of values", () => {
   const runtime = DiRuntime();
 
   const container = runtime.createContainer();
@@ -117,9 +199,51 @@ test("multi-bind resolves to array of values in registration order", () => {
     return "2";
   }
 
+  const _1st = container.register("factory", factory1);
+
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
+
+  const _2nd = _1st.register("factory", factory2);
+
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_2nd.seal().resolve("factory")).toMatchInlineSnapshot(`
+    [
+      1,
+      "2",
+    ]
+  `);
+});
+
+test("3rd+-bind resolves to an array of values", () => {
+  const runtime = DiRuntime();
+
+  const container = runtime.createContainer();
+
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
+    return 1;
+  }
+
+  factory2.dependsOn = [] as const;
+
+  function factory2(): number {
+    return 2;
+  }
+
   factory3.dependsOn = [] as const;
 
-  function factory3(): boolean {
+  function factory3(): string {
+    return "3";
+  }
+
+  factory4.dependsOn = [] as const;
+
+  function factory4(): boolean {
     return true;
   }
 
@@ -130,19 +254,28 @@ test("multi-bind resolves to array of values in registration order", () => {
   const _2nd = _1st.register("factory", factory2);
 
   expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
-    factory: [number, string];
+    factory: number[];
   }>();
 
   const _3rd = _2nd.register("factory", factory3);
 
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
   expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
-    factory: [number, string, boolean];
+    factory: number[];
+  }>();
+
+  const _4th = _2nd.register("factory", factory4);
+
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _4th>>().toEqualTypeOf<{
+    factory: number[];
   }>();
 
   expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
-      "2",
+      2,
+      "3",
       true,
     ]
   `);
