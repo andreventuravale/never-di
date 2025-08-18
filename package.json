@@ -1,5 +1,5 @@
 {
-  "name": "just-di",
+  "name": "di-di",
   "version": "0.0.1",
   "description": "A lightweight, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
@@ -31,7 +31,7 @@
   },
   "keywords": [
     "dependency-injection",
-    "just-di",
+    "di-di",
     "di",
     "esm-only",
     "framework-agnostic",
@@ -53,6 +53,6 @@
     "vitest": "^3.2.4"
   },
   "repository": {
-    "url": "https://github.com/andreventuravale/just-di"
+    "url": "https://github.com/andreventuravale/di-di"
   }
 }
