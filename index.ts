@@ -1,5 +1,15 @@
 type Reconcile<T> = { [K in keyof T]: T[K] } & {};
 
+type Assign<R, K extends string, V> = K extends keyof R
+  ? Reconcile<Omit<R, K> & { [P in K]: Push<R[K], V> }>
+  : Reconcile<R & { [P in K]: V }>;
+
+type Push<Existing, New> = Existing extends readonly [...infer R]
+  ? [...R, New]
+  : Existing extends any[]
+  ? [...Existing, New]
+  : [Existing, New];
+
 export interface IDiFactory<
   Output = unknown,
   Input extends unknown[] = unknown[],
@@ -20,7 +30,7 @@ export interface IDiContainer<Registry = {}> {
     factory: IDiFactory<Output, Input, Dependencies> & {
       dependsOn?: Dependencies;
     }
-  ): IDiContainer<Reconcile<Registry & { [K in Token]: Output }>>;
+  ): IDiContainer<Assign<Registry, Token, Output>>;
 
   seal(): IDiSealedContainer<Reconcile<Registry>>;
 }
@@ -39,7 +49,7 @@ export function DiRuntime(): IDiRuntime {
   };
 
   function createContainer(): IDiContainer {
-    const factories = new Map<string, IDiFactory>();
+    const factories = new Map<string, IDiFactory[]>();
 
     const resolvers = new Map<string, IDiFactory>();
 
@@ -54,16 +64,22 @@ export function DiRuntime(): IDiRuntime {
       token: Token,
       factory: IDiFactory<Output>
     ): IDiContainer {
-      factories.set(token, factory);
+      const existing = factories.get(token);
 
-      resolvers.set(token, () => resolveRecursive(token, new Set()));
+      if (existing) {
+        existing.push(factory);
+      } else {
+        factories.set(token, [factory]);
+      }
+
+      resolvers.set(token, () => _resolveToken(token, new Set(), []));
 
       return container as IDiContainer;
 
-      function resolveRecursive(
+      function _resolveToken(
         token: string,
         seen: Set<string>,
-        path: string[] = []
+        path: string[]
       ): unknown {
         if (seen.has(token)) {
           const cyclePath = [...path.slice(path.indexOf(token)), token];
@@ -71,21 +87,25 @@ export function DiRuntime(): IDiRuntime {
           throw new Error(`cycle detected: ${cyclePath.join(" → ")}`);
         }
 
-        const factory = factories.get(token) as IDiFactory;
+        const list = factories.get(token) as IDiFactory[];
 
         seen.add(token);
 
         path.push(token);
 
-        const dependencies =
-          factory.dependsOn?.map((dep) => resolveRecursive(dep, seen, path)) ??
-          [];
+        const results = list.map((factory) => {
+          const dependencies =
+            factory.dependsOn?.map((dep) => _resolveToken(dep, seen, path)) ??
+            [];
+
+          return factory(...(dependencies as unknown[]));
+        });
 
         seen.delete(token);
 
         path.pop();
 
-        return factory(...dependencies);
+        return results.length === 1 ? results[0] : results;
       }
     }
 
@@ -99,11 +119,11 @@ export function DiRuntime(): IDiRuntime {
       return sealedContainer;
 
       function resolve<T>(token: string): T {
-        if (!sealedResolvers.has(token)) {
+        const resolver = sealedResolvers.get(token) as T;
+
+        if (typeof resolver !== "function") {
           throw new Error(`token is not registered: ${token}`);
         }
-
-        const resolver = sealedResolvers.get(token) as IDiFactory<T>;
 
         return resolver();
       }
