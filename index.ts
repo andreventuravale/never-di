@@ -1,4 +1,5 @@
 export interface IDiFactory<T = unknown> {
+  readonly dependsOn?: readonly string[];
   (...args: unknown[]): T;
 }
 
@@ -21,7 +22,9 @@ export function DiRuntime(): IDiRuntime {
   };
 
   function createContainer(): IDiContainer {
-    const map = new Map<string, IDiFactory>();
+    const factories = new Map<string, IDiFactory>();
+
+    const resolvers = new Map<string, IDiFactory>();
 
     const container: IDiContainer = {
       register,
@@ -31,13 +34,46 @@ export function DiRuntime(): IDiRuntime {
     return container;
 
     function register(token: string, factory: IDiFactory): IDiContainer {
-      map.set(token, factory);
+      factories.set(token, factory);
+
+      resolvers.set(token, () => {
+        const dependencies = resolveDependencies(token);
+
+        return factory.apply(undefined, dependencies);
+      });
 
       return container;
+
+      function resolveDependencies(token: string): unknown[] {
+        const factory = factories.get(token);
+
+        if (typeof factory !== "function") {
+          throw new Error(
+            `token is registered but didn't resolve to a function: ${token}`
+          );
+        }
+
+        if (!factory.dependsOn) return [];
+
+        return factory.dependsOn.map((dependencyToken) => {
+          const dependencyFactory = factories.get(dependencyToken);
+
+          if (typeof dependencyFactory !== "function") {
+            throw new Error(
+              `token is registered but didn't resolve to a function: ${dependencyToken}`
+            );
+          }
+
+          return dependencyFactory.apply(
+            undefined,
+            resolveDependencies(dependencyToken)
+          );
+        });
+      }
     }
 
     function seal(): IDiSealedContainer {
-      const sealedMap = new Map(map.entries());
+      const sealedResolvers = new Map(resolvers.entries());
 
       const sealedContainer: IDiSealedContainer = {
         resolve,
@@ -46,19 +82,19 @@ export function DiRuntime(): IDiRuntime {
       return sealedContainer;
 
       function resolve<T>(token: string): T {
-        if (!sealedMap.has(token)) {
+        if (!sealedResolvers.has(token)) {
           throw new Error(`token is not registered: ${token}`);
         }
 
-        const factory = sealedMap.get(token);
+        const resolver = sealedResolvers.get(token) as IDiFactory<T>;
 
-        if (typeof factory !== "function") {
+        if (typeof resolver !== "function") {
           throw new Error(
             `token is registered but didn't resolve to a function: ${token}`
           );
         }
 
-        return factory() as T;
+        return resolver();
       }
     }
   }

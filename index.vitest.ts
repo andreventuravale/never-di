@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { DiRuntime } from ".";
+import { DiRuntime, IDiFactory } from ".";
 
 test("simplest use case", () => {
   const runtime = DiRuntime();
@@ -17,10 +17,16 @@ test("dependency resolution", () => {
 
   const container = runtime.createContainer();
 
+  bar.dependsOn = ["foo"]
+
+  function bar(foo: unknown): unknown {
+    return foo;
+  }
+
   expect(
     container
       .register("foo", () => "foo")
-      .register("bar", (foo) => foo)
+      .register("bar", bar)
       .seal()
       .resolve("bar")
   ).toMatchInlineSnapshot(`"foo"`);
