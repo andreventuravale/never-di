@@ -17,7 +17,7 @@ test("dependency resolution", () => {
 
   const container = runtime.createContainer();
 
-  baz.dependsOn = ["foo", "bar"];
+  baz.dependsOn = ["foo", "bar"] as const;
 
   function baz(foo: number, bar: number): number {
     return foo + bar;
@@ -25,9 +25,20 @@ test("dependency resolution", () => {
 
   expect(
     container
+      // @ts-expect-error Type '"foo" | "bar"' is not assignable to type 'never'.
+      .register("baz", baz)
       .register("foo", () => 1)
       .register("bar", () => 2)
+      .seal()
+      .resolve("baz")
+  ).toMatchInlineSnapshot(`3`);
+
+  expect(
+    container
+      .register("foo", () => 1)
+      // @ts-expect-error Type '"foo" | "bar"' is not assignable to type '"foo"'.
       .register("baz", baz)
+      .register("bar", () => 2)
       .seal()
       .resolve("baz")
   ).toMatchInlineSnapshot(`3`);

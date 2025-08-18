@@ -1,25 +1,25 @@
 type Reconcile<T> = { [K in keyof T]: T[K] } & {};
 
-export type DerivedRegistry<
-  PreviousRegistry,
-  IncomingToken extends string,
-  Output
-> = PreviousRegistry & {
-  [K in IncomingToken]: Output;
-};
-
 export interface IDiFactory<
   Output = unknown,
-  Input extends unknown[] = unknown[]
+  Input extends unknown[] = unknown[],
+  Dependencies extends readonly string[] = readonly []
 > {
-  readonly dependsOn?: readonly string[];
+  readonly dependsOn?: Dependencies;
   (...input: Input): Output;
 }
 
 export interface IDiContainer<Registry = {}> {
-  register<Token extends string, Output, Input extends unknown[] = unknown[]>(
+  register<
+    Token extends string,
+    Output,
+    Input extends unknown[] = unknown[],
+    Dependencies extends readonly Extract<keyof Registry, string>[] = []
+  >(
     token: Token,
-    factory: IDiFactory<Output, Input>
+    factory: IDiFactory<Output, Input, Dependencies> & {
+      dependsOn?: Dependencies;
+    }
   ): IDiContainer<Reconcile<Registry & { [K in Token]: Output }>>;
 
   seal(): IDiSealedContainer<Reconcile<Registry>>;
