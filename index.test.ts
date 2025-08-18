@@ -17,12 +17,34 @@ test("dependency resolution", () => {
 
   const container = runtime.createContainer();
 
+  baz.dependsOn = ["foo", "bar"];
+
+  function baz(foo: number, bar: number): number {
+    return foo + bar;
+  }
+
+  expect(
+    container
+    .register("foo", () => 1)
+    .register("bar", () => 2)
+    .register("baz", baz)
+      .seal()
+      .resolve("baz")
+  ).toMatchInlineSnapshot(`3`);
+});
+
+test("dependency tracking inherently determines the registration order", () => {
+  const runtime = DiRuntime();
+
+  const container = runtime.createContainer();
+
   bar.dependsOn = ["foo"];
 
   function bar(foo: unknown): unknown {
     return foo;
   }
 
+  // control
   expect(
     container
       .register("foo", () => "foo")
@@ -30,26 +52,11 @@ test("dependency resolution", () => {
       .seal()
       .resolve("bar")
   ).toMatchInlineSnapshot(`"foo"`);
-});
-
-test.skip("dependency tracking inherently determines the registration order", () => {
-  const runtime = DiRuntime();
-
-  const container = runtime.createContainer();
-
-  // control
-  expect(
-    container
-      .register("foo", () => "foo")
-      .register("bar", (foo) => foo)
-      .seal()
-      .resolve("bar")
-  ).toMatchInlineSnapshot(`"foo"`);
 
   // sut
   container
-    .register("foo", () => "foo")
     .register("bar", (foo) => foo)
+    .register("foo", () => "foo")
     .seal();
 });
 

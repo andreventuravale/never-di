@@ -1,10 +1,10 @@
-export interface IDiFactory<T = unknown> {
+export interface IDiFactory<T = unknown, Args extends unknown[] = unknown[]> {
   readonly dependsOn?: readonly string[];
-  (...args: unknown[]): T;
+  (...args: Args): T;
 }
 
 export interface IDiContainer {
-  register(token: string, factory: IDiFactory): IDiContainer;
+  register<T = unknown, Args extends unknown[] = unknown[]>(token: string, factory: IDiFactory<T, Args>): IDiContainer;
   seal(): IDiSealedContainer;
 }
 
@@ -33,7 +33,7 @@ export function DiRuntime(): IDiRuntime {
 
     return container;
 
-    function register(token: string, factory: IDiFactory): IDiContainer {
+    function register<T = unknown, Args extends unknown[] = unknown[]>(token: string, factory: IDiFactory<T, Args>): IDiContainer {
       factories.set(token, factory);
 
       resolvers.set(token, () => resolveRecursive(token, new Set()));
@@ -48,9 +48,7 @@ export function DiRuntime(): IDiRuntime {
         if (seen.has(token)) {
           const cyclePath = [...path.slice(path.indexOf(token)), token];
 
-          throw new Error(
-            `cycle detected: ${cyclePath.join(" → ")}`
-          );
+          throw new Error(`cycle detected: ${cyclePath.join(" → ")}`);
         }
 
         const factory = factories.get(token);
@@ -65,7 +63,7 @@ export function DiRuntime(): IDiRuntime {
 
         path.push(token);
 
-        const deps =
+        const dependencies =
           factory.dependsOn?.map((dep) => resolveRecursive(dep, seen, path)) ??
           [];
 
@@ -73,7 +71,7 @@ export function DiRuntime(): IDiRuntime {
 
         path.pop();
 
-        return factory(...deps);
+        return factory(...dependencies);
       }
     }
 
