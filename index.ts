@@ -71,13 +71,7 @@ export function DiRuntime(): IDiRuntime {
           throw new Error(`cycle detected: ${cyclePath.join(" → ")}`);
         }
 
-        const factory = factories.get(token);
-
-        if (typeof factory !== "function") {
-          throw new Error(
-            `token is registered but didn't resolve to a function: ${token}`
-          );
-        }
+        const factory = factories.get(token) as IDiFactory;
 
         seen.add(token);
 
@@ -110,12 +104,6 @@ export function DiRuntime(): IDiRuntime {
         }
 
         const resolver = sealedResolvers.get(token) as IDiFactory<T>;
-
-        if (typeof resolver !== "function") {
-          throw new Error(
-            `token is registered but didn't resolve to a function: ${token}`
-          );
-        }
 
         return resolver();
       }
