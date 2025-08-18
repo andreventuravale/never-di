@@ -1,15 +1,32 @@
-export interface IDiFactory<T = unknown, Args extends unknown[] = unknown[]> {
+type Reconcile<T> = { [K in keyof T]: T[K] } & {};
+
+export type DerivedRegistry<
+  PreviousRegistry,
+  IncomingToken extends string,
+  Output
+> = PreviousRegistry & {
+  [K in IncomingToken]: Output;
+};
+
+export interface IDiFactory<
+  Output = unknown,
+  Input extends unknown[] = unknown[]
+> {
   readonly dependsOn?: readonly string[];
-  (...args: Args): T;
+  (...input: Input): Output;
 }
 
-export interface IDiContainer {
-  register<T = unknown, Args extends unknown[] = unknown[]>(token: string, factory: IDiFactory<T, Args>): IDiContainer;
-  seal(): IDiSealedContainer;
+export interface IDiContainer<Registry = {}> {
+  register<Token extends string, Output, Input extends unknown[] = unknown[]>(
+    token: Token,
+    factory: IDiFactory<Output, Input>
+  ): IDiContainer<Reconcile<Registry & { [K in Token]: Output }>>;
+
+  seal(): IDiSealedContainer<Reconcile<Registry>>;
 }
 
-export interface IDiSealedContainer {
-  resolve<T>(token: string): T;
+export interface IDiSealedContainer<Registry = {}> {
+  resolve<Token extends keyof Registry>(token: Token): Registry[Token];
 }
 
 export interface IDiRuntime {
@@ -26,19 +43,22 @@ export function DiRuntime(): IDiRuntime {
 
     const resolvers = new Map<string, IDiFactory>();
 
-    const container: IDiContainer = {
+    const container = {
       register,
       seal,
     };
 
-    return container;
+    return container as IDiContainer;
 
-    function register<T = unknown, Args extends unknown[] = unknown[]>(token: string, factory: IDiFactory<T, Args>): IDiContainer {
+    function register<Token extends string, Output>(
+      token: Token,
+      factory: IDiFactory<Output>
+    ): IDiContainer {
       factories.set(token, factory);
 
       resolvers.set(token, () => resolveRecursive(token, new Set()));
 
-      return container;
+      return container as IDiContainer;
 
       function resolveRecursive(
         token: string,
