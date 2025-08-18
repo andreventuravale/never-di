@@ -1,7 +1,7 @@
 {
-  "name": "fun-di",
+  "name": "nano-di",
   "version": "0.0.1",
-  "description": "A DI library for factory functions with compile-time accumulative dependency type-checking.",
+  "description": "A lightweight, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -33,7 +33,7 @@
     "dependency-injection",
     "di",
     "functional-di",
-    "fun-di",
+    "nano-di",
     "typescript",
     "typescript-di",
     "injection",
@@ -51,5 +51,8 @@
     "tsx": "^4.20.4",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "repository": {
+    "url": "https://github.com/andreventuravale/nano-di"
   }
 }

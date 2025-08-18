@@ -1,6 +1,6 @@
 # fun-di
 
-A lightweight, function-only dependency injection (DI) container for TypeScript.  
+A lightweight, dependency-free, **function-only** dependency injection (DI) container for TypeScript.
 No decorators, no reflection, no classes — just plain functions with strong type safety.
 
 ---
