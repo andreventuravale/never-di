@@ -1,22 +1,24 @@
-export type RegistryOf<C> = C extends IDiContainer<infer R> ? R : never;
+type _ElementType<T> = T extends readonly (infer U)[] ? U : T;
 
-type ElementType<T> = T extends readonly (infer U)[] ? U : T;
-
-type EnforceSame<A, B> = [A] extends [B]
+type _EnforceSame<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? A
     : never
   : never;
 
-type Reconcile<T> = { [K in keyof T]: T[K] } & {};
+type _Reconcile<T> = { [K in keyof T]: T[K] } & {};
 
-type AssignArray<R, K extends string, V> = K extends keyof R
-  ? Reconcile<
+type _AssignArray<R, K extends string, V> = K extends keyof R
+  ? _Reconcile<
       Omit<R, K> & {
-        [P in K]: EnforceSame<ElementType<R[K]>, V>[];
+        [P in K]: _EnforceSame<_ElementType<R[K]>, V>[];
       }
     >
-  : Reconcile<R & { [P in K]: V }>;
+  : _Reconcile<R & { [P in K]: V }>;
+
+export type RegistryOf<Container> = Container extends IDiContainer<infer R>
+  ? R
+  : never;
 
 export interface IDiFactory<
   Output = unknown,
@@ -38,7 +40,7 @@ export interface IDiContainer<Registry = {}> {
     factory: IDiFactory<Output, Input, Dependencies> & {
       dependsOn?: Dependencies;
     }
-  ): IDiContainer<AssignArray<Registry, Token, Output>>;
+  ): IDiContainer<_AssignArray<Registry, Token, Output>>;
 
   seal(): IDiSealedContainer<Registry>;
 }
@@ -64,12 +66,12 @@ export function DiRuntime(): IDiRuntime {
     return Container(ContainerState());
   }
 
-  type ContainerState = {
+  type _ContainerState = {
     factories: Map<string, IDiFactory[]>;
-    resolvers: Map<string, (state: ContainerState) => () => unknown>;
+    resolvers: Map<string, (state: _ContainerState) => () => unknown>;
   };
 
-  function Container(state: ContainerState): IDiContainer {
+  function Container(state: _ContainerState): IDiContainer {
     return {
       register,
       seal,
@@ -118,14 +120,14 @@ export function DiRuntime(): IDiRuntime {
       }
     }
 
-    type ResolveContext = {
+    type _ResolveContext = {
       path?: string[];
       seen?: Set<string>;
     };
 
     function _resolveToken(
-      this: ContainerState,
-      { path = [], seen = new Set() }: ResolveContext,
+      this: _ContainerState,
+      { path = [], seen = new Set() }: _ResolveContext,
       token: string
     ): unknown {
       if (cache.has(token)) return cache.get(token);
@@ -165,7 +167,7 @@ export function DiRuntime(): IDiRuntime {
     }
   }
 
-  function ContainerState(priorState?: ContainerState): ContainerState {
+  function ContainerState(priorState?: _ContainerState): _ContainerState {
     return {
       factories: new Map(priorState?.factories ?? null),
       resolvers: new Map(priorState?.resolvers ?? null),
