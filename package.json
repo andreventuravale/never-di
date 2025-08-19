@@ -31,7 +31,6 @@
   },
   "keywords": [
     "dependency-injection",
-    "never-di",
     "di",
     "esm-only",
     "framework-agnostic",
@@ -39,6 +38,7 @@
     "injection",
     "ioc",
     "lightweight",
+    "never-di",
     "typescript-di",
     "typescript"
   ],
