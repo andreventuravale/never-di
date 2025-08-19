@@ -57,8 +57,6 @@ Most DI libraries are heavy, rely on decorators or reflection, and introduce run
 ```ts
 import { startContainer } from "never-di";
 
-const draft = startContainer();
-
 foo.dependsOn = [] as const;
 
 function foo(): number {
@@ -71,7 +69,7 @@ function bar(foo: number): string {
   return `bar(${foo})`;
 }
 
-const container = draft
+const container = startContainer()
   .register("foo", foo)
   .register("bar", bar)
   .seal();
@@ -82,6 +80,8 @@ console.log(sealed.resolve("bar")); // "bar(1)"
 ### Multi-binding Example
 
 ```ts
+import { startContainer } from "never-di";
+
 handler1.dependsOn = [] as const;
 
 function handler1(): string {
@@ -94,7 +94,7 @@ function handler2(): string {
   return "h2";
 }
 
-const container = draft
+const container = startContainer()
   .register("handler", handler1)
   .register("handler", handler2)
   .seal();
