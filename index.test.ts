@@ -2,14 +2,11 @@ import type { RegistryOf } from ".";
 
 import { expect, expectTypeOf, test } from "vitest";
 
-import { DiRuntime } from ".";
+import { startContainer } from ".";
 
 test("simplest use case", () => {
-  const runtime = DiRuntime();
-
   expect(
-    runtime
-      .startContainer()
+    startContainer()
       .register("foo", () => "foo")
       .seal()
       .resolve("foo")
@@ -17,8 +14,6 @@ test("simplest use case", () => {
 });
 
 test("dependency tracking inherently determines the registration order", () => {
-  const runtime = DiRuntime();
-
   baz.dependsOn = ["foo", "bar"] as const;
 
   function baz(foo: number, bar: number): number {
@@ -27,8 +22,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // control
   expect(
-    runtime
-      .startContainer()
+    startContainer()
       .register("foo", () => 1)
       .register("bar", () => 2)
       .register("baz", baz)
@@ -38,8 +32,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // missing foo and bar
   expect(
-    runtime
-      .startContainer()
+    startContainer()
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type 'never'
       .register("baz", baz)
       .register("foo", () => 1)
@@ -50,8 +43,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // missing bar
   expect(
-    runtime
-      .startContainer()
+    startContainer()
       .register("foo", () => 1)
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type '"foo"'
       .register("baz", baz)
@@ -62,8 +54,6 @@ test("dependency tracking inherently determines the registration order", () => {
 });
 
 test("circular dependency is detected via seen set", () => {
-  const runtime = DiRuntime();
-
   a.dependsOn = ["b"];
 
   function a(b: unknown) {
@@ -76,8 +66,7 @@ test("circular dependency is detected via seen set", () => {
     return `b(${a})`;
   }
 
-  const draft = runtime
-    .startContainer()
+  const draft = startContainer()
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("a", a)
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
@@ -89,11 +78,8 @@ test("circular dependency is detected via seen set", () => {
 });
 
 test("token does not exist", () => {
-  const runtime = DiRuntime();
-
   expect(() =>
-    runtime
-      .startContainer()
+    startContainer()
       .seal()
       // @ts-expect-error Argument of type '"foo"' is not assignable to parameter of type 'never'
       .resolve("foo")
@@ -101,9 +87,7 @@ test("token does not exist", () => {
 });
 
 test("single-bind resolves to a single value", () => {
-  const runtime = DiRuntime();
-
-  const draft = runtime.startContainer();
+  const draft = startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -134,9 +118,7 @@ test("single-bind resolves to a single value", () => {
 });
 
 test("multi-bind resolves to an array of values", () => {
-  const runtime = DiRuntime();
-
-  const draft = runtime.startContainer();
+  const draft = startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -183,9 +165,7 @@ test("multi-bind resolves to an array of values", () => {
 });
 
 test("2nd+-bind resolves to an array of values", () => {
-  const runtime = DiRuntime();
-
-  const draft = runtime.startContainer();
+  const draft = startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -264,15 +244,13 @@ test("2nd+-bind resolves to an array of values", () => {
 });
 
 test("containers are immutable", () => {
-  const runtime = DiRuntime();
-
   baz.dependsOn = ["foo", "bar"] as const;
 
   function baz(foo: number, bar: number): number {
     return foo + bar;
   }
 
-  const draft1 = runtime.startContainer().register("foo", () => 1);
+  const draft1 = startContainer().register("foo", () => 1);
 
   const draft2 = draft1.register("bar", () => 2);
 
@@ -316,16 +294,13 @@ test("containers are immutable", () => {
 });
 
 test("bind happy path", () => {
-  const runtime = DiRuntime();
-
   unbound.dependsOn = ["foo"] as const;
 
   function unbound(foo: string) {
     return foo;
   }
 
-  const bound = runtime
-    .startContainer()
+  const bound = startContainer()
     .register("foo", () => "foo")
     .seal()
     .bind(unbound);
@@ -334,8 +309,6 @@ test("bind happy path", () => {
 });
 
 test("registering on a new container does not mutate the old one's factories", () => {
-  const runtime = DiRuntime();
-
   function f1() {
     return 1;
   }
@@ -344,7 +317,7 @@ test("registering on a new container does not mutate the old one's factories", (
     return 2;
   }
 
-  const draft0 = runtime.startContainer();
+  const draft0 = startContainer();
 
   const draft1 = draft0.register("x", f1);
 
@@ -356,8 +329,6 @@ test("registering on a new container does not mutate the old one's factories", (
 });
 
 test("single sealed container caches a token: multiple resolves do not re-execute the factory", () => {
-  const runtime = DiRuntime();
-
   let calls = 0;
 
   function f(): string {
@@ -368,7 +339,7 @@ test("single sealed container caches a token: multiple resolves do not re-execut
 
   expect(calls).toBe(0);
 
-  const container = runtime.startContainer().register("x", f).seal();
+  const container = startContainer().register("x", f).seal();
 
   expect(container.resolve("x")).toBe("value");
 
@@ -380,8 +351,6 @@ test("single sealed container caches a token: multiple resolves do not re-execut
 });
 
 test("cache is per container: each container runs its factory exactly once", () => {
-  const runtime = DiRuntime();
-
   let calls = 0;
 
   function x(): string {
@@ -390,9 +359,9 @@ test("cache is per container: each container runs its factory exactly once", () 
     return "value";
   }
 
-  const c1 = runtime.startContainer().register("x", x).seal();
+  const c1 = startContainer().register("x", x).seal();
 
-  const c2 = runtime.startContainer().register("x", x).seal();
+  const c2 = startContainer().register("x", x).seal();
 
   // First container: resolving multiple times should only execute once
   expect(calls).toBe(0);
@@ -413,8 +382,6 @@ test("cache is per container: each container runs its factory exactly once", () 
 });
 
 test("re-registering a multi-bound token invalidates that token only and reruns its factories in the new container", () => {
-  const runtime = DiRuntime();
-
   let x1Calls = 0;
 
   function x1() {
@@ -447,8 +414,7 @@ test("re-registering a multi-bound token invalidates that token only and reruns 
     return "y";
   }
 
-  const d1 = runtime
-    .startContainer()
+  const d1 = startContainer()
     .register("x", x1)
     .register("x", x2)
     .register("y", y);
@@ -477,8 +443,6 @@ test("re-registering a multi-bound token invalidates that token only and reruns 
 });
 
 test("re-registering a token invalidates exactly that token's cached value", () => {
-  const runtime = DiRuntime();
-
   let f1Calls = 0;
   let f2Calls = 0;
 
@@ -494,7 +458,7 @@ test("re-registering a token invalidates exactly that token's cached value", () 
   f2.dependsOn = [] as const;
 
   // 1) Build c1 and populate the cache for 'x'
-  const c1 = runtime.startContainer().register("x", f1);
+  const c1 = startContainer().register("x", f1);
   const s1 = c1.seal();
 
   expect(s1.resolve("x")).toBe(1); // populates cache: f1 ran once

@@ -55,11 +55,9 @@ Most DI libraries are heavy, rely on decorators or reflection, and introduce run
 ### Basic Example
 
 ```ts
-import { DiRuntime } from "never-di";
+import { startContainer } from "never-di";
 
-const runtime = DiRuntime();
-
-const draft = runtime.startContainer();
+const draft = startContainer();
 
 foo.dependsOn = [] as const;
 
