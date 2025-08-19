@@ -1,3 +1,5 @@
+export type RegistryOf<C> = C extends IDiContainer<infer R> ? R : never;
+
 type ElementType<T> = T extends readonly (infer U)[] ? U : T;
 
 type EnforceSame<A, B> = [A] extends [B]
@@ -38,10 +40,6 @@ export interface IDiContainer<Registry = {}> {
     }
   ): IDiContainer<AssignArray<Registry, Token, Output>>;
 
-  seal(): IDiSealedContainer<Reconcile<Registry>>;
-}
-
-export interface IDiSealedContainer<Registry = {}> {
   resolve<Token extends keyof Registry>(token: Token): Registry[Token];
 }
 
@@ -55,83 +53,93 @@ export function DiRuntime(): IDiRuntime {
   };
 
   function createContainer(): IDiContainer {
-    const factories = new Map<string, IDiFactory[]>();
-
-    const resolvers = new Map<string, () => unknown>();
-
-    const container = {
-      register,
-      seal,
-    };
-
-    return container as IDiContainer;
-
-    function register<Token extends string, Output>(
-      token: Token,
-      factory: IDiFactory<Output>
-    ): IDiContainer {
-      const existing = factories.get(token);
-
-      if (existing) {
-        existing.push(factory);
-      } else {
-        factories.set(token, [factory]);
-      }
-
-      resolvers.set(token, () => resolveToken(token, new Set(), []));
-
-      return container as IDiContainer;
-
-      function resolveToken(
-        token: string,
-        seen: Set<string>,
-        path: string[]
-      ): unknown {
-        if (seen.has(token)) {
-          const cyclePath = [...path.slice(path.indexOf(token)), token];
-
-          throw new Error(`cycle detected: ${cyclePath.join(" > ")}`);
-        }
-
-        const factory = factories.get(token) as IDiFactory[];
-
-        seen.add(token);
-
-        path.push(token);
-
-        const results = factory.map((factory) => {
-          const dependencies =
-            factory.dependsOn?.map((dependency) =>
-              resolveToken(dependency, seen, path)
-            ) ?? [];
-
-          return factory.apply(undefined, dependencies);
-        });
-
-        seen.delete(token);
-
-        path.pop();
-
-        return results.length === 1 ? results[0] : results;
-      }
-    }
-
-    function seal(): IDiSealedContainer {
-      const sealedResolvers = new Map(resolvers.entries());
-
-      const sealedContainer: IDiSealedContainer = { resolve };
-
-      return sealedContainer;
-
-      function resolve<T>(token: string): T {
-        const resolver = sealedResolvers.get(token);
-
-        if (!resolver) {
-          throw new Error(`token is not registered: ${token}`);
-        }
-
-        return resolver() as T;
-      }
-    }
+    return Container(ContainerState());
   }
+}
+
+type ContainerState = {
+  factories: Map<string, IDiFactory[]>;
+  resolvers: Map<string, (state: ContainerState) => () => unknown>;
+};
+
+function Container(state: ContainerState): IDiContainer {
+  return {
+    register,
+    resolve,
+  } as IDiContainer;
+
+  function register(token: string, factory: IDiFactory): IDiContainer {
+    const newState = ContainerState(state);
+
+    const existing = newState.factories.get(token);
+
+    if (existing) {
+      existing.push(factory);
+    } else {
+      newState.factories.set(token, [factory]);
+    }
+
+    newState.resolvers.set(token, (state) =>
+      resolveToken.bind(state, {}, token)
+    );
+
+    return Container(newState);
+  }
+
+  function resolve(token: string): unknown {
+    const resolver = state.resolvers.get(token);
+
+    if (!resolver) {
+      throw new Error(`token is not registered: ${token}`);
+    }
+
+    return resolver(state)();
+  }
+}
+
+function ContainerState(priorState?: ContainerState): ContainerState {
+  return {
+    factories: new Map(priorState?.factories ?? null),
+    resolvers: new Map(priorState?.resolvers ?? null),
+  };
+}
+
+type ResolveContext = {
+  path?: string[];
+  seen?: Set<string>;
+};
+
+function resolveToken(
+  this: ContainerState,
+  { path = [], seen = new Set() }: ResolveContext,
+  token: string
+): unknown {
+  if (seen.has(token)) {
+    const cyclePath = [...path.slice(path.indexOf(token)), token];
+
+    throw new Error(`cycle detected: ${cyclePath.join(" > ")}`);
+  }
+
+  const factory = this.factories.get(token) as IDiFactory[];
+
+  seen.add(token);
+
+  path.push(token);
+
+  const results = factory.map((factory) => {
+    const context = { path, seen };
+
+    const dependencies =
+      factory.dependsOn?.map((dependency) =>
+        resolveToken.call(this, context, dependency)
+      ) ?? [];
+
+    return factory.apply(undefined, dependencies);
+  });
+
+  seen.delete(token);
+
+  path.pop();
+
+  return results.length === 1 ? results[0] : results;
 }

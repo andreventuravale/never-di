@@ -1,6 +1,8 @@
+import type { RegistryOf } from ".";
+
 import { expect, expectTypeOf, test } from "vitest";
 
-import { DiRuntime, IDiContainer } from ".";
+import { DiRuntime } from ".";
 
 test("simplest use case", () => {
   const runtime = DiRuntime();
@@ -9,7 +11,6 @@ test("simplest use case", () => {
     runtime
       .createContainer()
       .register("foo", () => "foo")
-      .seal()
       .resolve("foo")
   ).toMatchInlineSnapshot(`"foo"`);
 });
@@ -30,7 +31,6 @@ test("dependency tracking inherently determines the registration order", () => {
       .register("foo", () => 1)
       .register("bar", () => 2)
       .register("baz", baz)
-      .seal()
       .resolve("baz")
   ).toMatchInlineSnapshot(`3`);
 
@@ -42,7 +42,6 @@ test("dependency tracking inherently determines the registration order", () => {
       .register("baz", baz)
       .register("foo", () => 1)
       .register("bar", () => 2)
-      .seal()
       .resolve("baz")
   ).toMatchInlineSnapshot(`3`);
 
@@ -54,7 +53,6 @@ test("dependency tracking inherently determines the registration order", () => {
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type '"foo"'
       .register("baz", baz)
       .register("bar", () => 2)
-      .seal()
       .resolve("baz")
   ).toMatchInlineSnapshot(`3`);
 });
@@ -81,9 +79,9 @@ test("circular dependency is detected via seen set", () => {
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("b", b);
 
-  expect(() =>
-    container.seal().resolve("a")
-  ).toThrowErrorMatchingInlineSnapshot(`[Error: cycle detected: a > b > a]`);
+  expect(() => container.resolve("a")).toThrowErrorMatchingInlineSnapshot(
+    `[Error: cycle detected: a > b > a]`
+  );
 });
 
 test("token does not exist", () => {
@@ -92,13 +90,10 @@ test("token does not exist", () => {
   expect(() =>
     runtime
       .createContainer()
-      .seal()
       // @ts-expect-error Argument of type '"foo"' is not assignable to parameter of type 'never'
       .resolve("foo")
   ).toThrowErrorMatchingInlineSnapshot(`[Error: token is not registered: foo]`);
 });
-
-type RegistryOf<C> = C extends IDiContainer<infer R> ? R : never;
 
 test("single-bind resolves to a single value", () => {
   const runtime = DiRuntime();
@@ -128,9 +123,9 @@ test("single-bind resolves to a single value", () => {
     factory2: number;
   }>();
 
-  expect(_2nd.seal().resolve("factory1")).toMatchInlineSnapshot(`1`);
+  expect(_2nd.resolve("factory1")).toMatchInlineSnapshot(`1`);
 
-  expect(_2nd.seal().resolve("factory2")).toMatchInlineSnapshot(`1`);
+  expect(_2nd.resolve("factory2")).toMatchInlineSnapshot(`1`);
 });
 
 test("multi-bind resolves to an array of values", () => {
@@ -173,7 +168,7 @@ test("multi-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
-  expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
+  expect(_3rd.resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
       2,
@@ -215,7 +210,7 @@ test("2nd+-bind resolves to an array of values", () => {
 
   expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
 
-  expect(_1st.seal().resolve("factory")).toMatchInlineSnapshot(`1`);
+  expect(_1st.resolve("factory")).toMatchInlineSnapshot(`1`);
 
   const _2nd = _1st.register("factory", factory2);
 
@@ -224,7 +219,7 @@ test("2nd+-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
-  expect(_2nd.seal().resolve("factory")).toMatchInlineSnapshot(`
+  expect(_2nd.resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
       "2",
@@ -238,7 +233,7 @@ test("2nd+-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
-  expect(_3rd.seal().resolve("factory")).toMatchInlineSnapshot(`
+  expect(_3rd.resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
       "2",
@@ -253,7 +248,7 @@ test("2nd+-bind resolves to an array of values", () => {
     factory: number[];
   }>();
 
-  expect(_4th.seal().resolve("factory")).toMatchInlineSnapshot(`
+  expect(_4th.resolve("factory")).toMatchInlineSnapshot(`
     [
       1,
       "2",
@@ -261,4 +256,50 @@ test("2nd+-bind resolves to an array of values", () => {
       true,
     ]
   `);
+});
+
+test("containers are immutable", () => {
+  const runtime = DiRuntime();
+
+  baz.dependsOn = ["foo", "bar"] as const;
+
+  function baz(foo: number, bar: number): number {
+    return foo + bar;
+  }
+
+  const c1 = runtime.createContainer().register("foo", () => 1);
+
+  const c2 = c1.register("bar", () => 2);
+
+  const c3 = c2.register("baz", baz);
+
+  expect(c1.resolve("foo")).toMatchInlineSnapshot(`1`);
+
+  expect(c2.resolve("foo")).toMatchInlineSnapshot(`1`);
+  expect(c2.resolve("bar")).toMatchInlineSnapshot(`2`);
+
+  expect(c3.resolve("foo")).toMatchInlineSnapshot(`1`);
+  expect(c3.resolve("bar")).toMatchInlineSnapshot(`2`);
+  expect(c3.resolve("baz")).toMatchInlineSnapshot(`3`);
+
+  expect(() => {
+    // @ts-expect-error Argument of type '"bar"' is not assignable to parameter of type '"foo"'
+    c1.resolve("bar");
+  }).toThrowErrorMatchingInlineSnapshot(
+    `[Error: token is not registered: bar]`
+  );
+
+  expect(() => {
+    // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
+    c1.resolve("baz");
+  }).toThrowErrorMatchingInlineSnapshot(
+    `[Error: token is not registered: baz]`
+  );
+
+  expect(() => {
+    // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
+    c2.resolve("baz");
+  }).toThrowErrorMatchingInlineSnapshot(
+    `[Error: token is not registered: baz]`
+  );
 });
