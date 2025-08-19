@@ -26,7 +26,7 @@ export interface IDiFactory<
   Dependencies extends readonly string[] = readonly []
 > {
   readonly dependsOn?: Dependencies;
-  (...input: Input): Output;
+  (this: void, ...input: Input): Output;
 }
 
 export interface IDiContainer<Registry = {}> {
@@ -46,7 +46,7 @@ export interface IDiContainer<Registry = {}> {
 }
 
 export interface IDiSealedContainer<Registry = {}> {
-  bind<Fn extends (...args: any[]) => any>(fn: Fn): () => ReturnType<Fn>;
+  bind<Fn extends (...args: any[]) => any>(fn: Fn): (this: void) => ReturnType<Fn>;
 
   resolve<Token extends keyof Registry>(token: Token): Registry[Token];
 }
@@ -56,8 +56,6 @@ export interface IDiRuntime {
 }
 
 export function DiRuntime(): IDiRuntime {
-  const cache = new Map();
-
   return {
     createContainer,
   };
@@ -72,6 +70,8 @@ export function DiRuntime(): IDiRuntime {
   };
 
   function Container(state: _ContainerState): IDiContainer {
+    const cache = new Map();
+
     return {
       register,
       seal,
