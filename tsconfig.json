@@ -1,7 +1,6 @@
 {
   "compilerOptions": {
-    "noEmit": true,
-    "verbatimModuleSyntax": true
+    "noEmit": true
   },
   "extends": "./tsconfig.build.json",
   "include": ["."]

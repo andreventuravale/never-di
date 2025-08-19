@@ -5,12 +5,13 @@
     "emitDeclarationOnly": true,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "moduleResolution": "bundler",
     "outDir": "dist",
     "skipLibCheck": true,
     "strict": true,
     "stripInternal": true,
-    "target": "ES2022"
+    "target": "ES2022",
+    "verbatimModuleSyntax": true
   },
   "include": ["."]
 }

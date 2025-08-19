@@ -3,14 +3,8 @@
   "version": "0.0.1",
   "description": "A lightweight, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
+  "module": "./index.ts",
+  "types": "./index.ts",
   "files": [
     "dist",
     "README.md",
