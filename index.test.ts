@@ -9,7 +9,7 @@ test("simplest use case", () => {
 
   expect(
     runtime
-      .createContainer()
+      .startContainer()
       .register("foo", () => "foo")
       .seal()
       .resolve("foo")
@@ -28,7 +28,7 @@ test("dependency tracking inherently determines the registration order", () => {
   // control
   expect(
     runtime
-      .createContainer()
+      .startContainer()
       .register("foo", () => 1)
       .register("bar", () => 2)
       .register("baz", baz)
@@ -39,7 +39,7 @@ test("dependency tracking inherently determines the registration order", () => {
   // missing foo and bar
   expect(
     runtime
-      .createContainer()
+      .startContainer()
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type 'never'
       .register("baz", baz)
       .register("foo", () => 1)
@@ -51,7 +51,7 @@ test("dependency tracking inherently determines the registration order", () => {
   // missing bar
   expect(
     runtime
-      .createContainer()
+      .startContainer()
       .register("foo", () => 1)
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type '"foo"'
       .register("baz", baz)
@@ -76,16 +76,16 @@ test("circular dependency is detected via seen set", () => {
     return `b(${a})`;
   }
 
-  const container = runtime
-    .createContainer()
+  const draft = runtime
+    .startContainer()
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("a", a)
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("b", b);
 
-  expect(() =>
-    container.seal().resolve("a")
-  ).toThrowErrorMatchingInlineSnapshot(`[Error: cycle detected: a > b > a]`);
+  expect(() => draft.seal().resolve("a")).toThrowErrorMatchingInlineSnapshot(
+    `[Error: cycle detected: a > b > a]`
+  );
 });
 
 test("token does not exist", () => {
@@ -93,7 +93,7 @@ test("token does not exist", () => {
 
   expect(() =>
     runtime
-      .createContainer()
+      .startContainer()
       .seal()
       // @ts-expect-error Argument of type '"foo"' is not assignable to parameter of type 'never'
       .resolve("foo")
@@ -103,7 +103,7 @@ test("token does not exist", () => {
 test("single-bind resolves to a single value", () => {
   const runtime = DiRuntime();
 
-  const container = runtime.createContainer();
+  const draft = runtime.startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -117,7 +117,7 @@ test("single-bind resolves to a single value", () => {
     return value1;
   }
 
-  const _1st = container.register("factory1", factory1);
+  const _1st = draft.register("factory1", factory1);
 
   expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory1: number }>();
 
@@ -136,7 +136,7 @@ test("single-bind resolves to a single value", () => {
 test("multi-bind resolves to an array of values", () => {
   const runtime = DiRuntime();
 
-  const container = runtime.createContainer();
+  const draft = runtime.startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -156,7 +156,7 @@ test("multi-bind resolves to an array of values", () => {
     return "3";
   }
 
-  const _1st = container.register("factory", factory1);
+  const _1st = draft.register("factory", factory1);
 
   expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
 
@@ -185,7 +185,7 @@ test("multi-bind resolves to an array of values", () => {
 test("2nd+-bind resolves to an array of values", () => {
   const runtime = DiRuntime();
 
-  const container = runtime.createContainer();
+  const draft = runtime.startContainer();
 
   factory1.dependsOn = [] as const;
 
@@ -211,7 +211,7 @@ test("2nd+-bind resolves to an array of values", () => {
     return true;
   }
 
-  const _1st = container.register("factory", factory1);
+  const _1st = draft.register("factory", factory1);
 
   expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
 
@@ -246,7 +246,7 @@ test("2nd+-bind resolves to an array of values", () => {
     ]
   `);
 
-  const _4th = _2nd.register("factory", factory4);
+  const _4th = _3rd.register("factory", factory4);
 
   // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
   expectTypeOf<RegistryOf<typeof _4th>>().toEqualTypeOf<{
@@ -272,23 +272,24 @@ test("containers are immutable", () => {
     return foo + bar;
   }
 
-  const c1 = runtime.createContainer().register("foo", () => 1);
+  const draft1 = runtime.startContainer().register("foo", () => 1);
 
-  const c2 = c1.register("bar", () => 2);
+  const draft2 = draft1.register("bar", () => 2);
 
-  const c3 = c2.register("baz", baz);
+  const draft3 = draft2.register("baz", baz);
 
-  expect(c1.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
+  expect(draft1.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
 
-  expect(c2.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
-  expect(c2.seal().resolve("bar")).toMatchInlineSnapshot(`2`);
+  expect(draft2.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
+  expect(draft2.seal().resolve("bar")).toMatchInlineSnapshot(`2`);
 
-  expect(c3.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
-  expect(c3.seal().resolve("bar")).toMatchInlineSnapshot(`2`);
-  expect(c3.seal().resolve("baz")).toMatchInlineSnapshot(`3`);
+  expect(draft3.seal().resolve("foo")).toMatchInlineSnapshot(`1`);
+  expect(draft3.seal().resolve("bar")).toMatchInlineSnapshot(`2`);
+  expect(draft3.seal().resolve("baz")).toMatchInlineSnapshot(`3`);
 
   expect(() => {
-    c1.seal()
+    draft1
+      .seal()
       // @ts-expect-error Argument of type '"bar"' is not assignable to parameter of type '"foo"'
       .resolve("bar");
   }).toThrowErrorMatchingInlineSnapshot(
@@ -296,7 +297,8 @@ test("containers are immutable", () => {
   );
 
   expect(() => {
-    c1.seal()
+    draft1
+      .seal()
       // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
       .resolve("baz");
   }).toThrowErrorMatchingInlineSnapshot(
@@ -304,7 +306,8 @@ test("containers are immutable", () => {
   );
 
   expect(() => {
-    c2.seal()
+    draft2
+      .seal()
       // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
       .resolve("baz");
   }).toThrowErrorMatchingInlineSnapshot(
@@ -322,10 +325,194 @@ test("bind happy path", () => {
   }
 
   const bound = runtime
-    .createContainer()
+    .startContainer()
     .register("foo", () => "foo")
     .seal()
     .bind(unbound);
 
   expect(bound()).toMatchInlineSnapshot(`"foo"`);
+});
+
+test("registering on a new container does not mutate the old one's factories", () => {
+  const runtime = DiRuntime();
+
+  function f1() {
+    return 1;
+  }
+
+  function f2() {
+    return 2;
+  }
+
+  const draft0 = runtime.startContainer();
+
+  const draft1 = draft0.register("x", f1);
+
+  const draft2 = draft1.register("x", f2);
+
+  expect(draft2.seal().resolve("x")).toEqual([1, 2]);
+
+  expect(draft1.seal().resolve("x")).toEqual(1);
+});
+
+test("single sealed container caches a token: multiple resolves do not re-execute the factory", () => {
+  const runtime = DiRuntime();
+
+  let calls = 0;
+
+  function f(): string {
+    calls += 1;
+
+    return "value";
+  }
+
+  expect(calls).toBe(0);
+
+  const container = runtime.startContainer().register("x", f).seal();
+
+  expect(container.resolve("x")).toBe("value");
+
+  expect(container.resolve("x")).toBe("value");
+
+  expect(container.resolve("x")).toBe("value");
+
+  expect(calls).toBe(1);
+});
+
+test("cache is per container: each container runs its factory exactly once", () => {
+  const runtime = DiRuntime();
+
+  let calls = 0;
+
+  function x(): string {
+    calls += 1;
+
+    return "value";
+  }
+
+  const c1 = runtime.startContainer().register("x", x).seal();
+
+  const c2 = runtime.startContainer().register("x", x).seal();
+
+  // First container: resolving multiple times should only execute once
+  expect(calls).toBe(0);
+  expect(c1.resolve("x")).toBe("value");
+  expect(calls).toBe(1);
+  expect(c1.resolve("x")).toBe("value");
+  expect(calls).toBe(1);
+
+  // Second container: should execute again (per-container singleton)
+  expect(calls).toBe(1);
+  expect(c2.resolve("x")).toBe("value");
+  expect(calls).toBe(2);
+
+  // And repeated resolves in the second container don't re-run
+  expect(calls).toBe(2);
+  expect(c2.resolve("x")).toBe("value");
+  expect(calls).toBe(2);
+});
+
+test("re-registering a multi-bound token invalidates that token only and reruns its factories in the new container", () => {
+  const runtime = DiRuntime();
+
+  let x1Calls = 0;
+
+  function x1() {
+    x1Calls += 1;
+
+    return 1;
+  }
+
+  let x2Calls = 0;
+
+  function x2() {
+    x2Calls += 1;
+
+    return 2;
+  }
+
+  let x3Calls = 0;
+
+  function x3() {
+    x3Calls += 1;
+
+    return 3;
+  }
+
+  let yCalls = 0;
+
+  function y() {
+    yCalls += 1;
+
+    return "y";
+  }
+
+  const d1 = runtime
+    .startContainer()
+    .register("x", x1)
+    .register("x", x2)
+    .register("y", y);
+
+  const c1 = d1.seal();
+
+  // populate cache in c1
+  expect(c1.resolve("x")).toEqual([1, 2]);
+  expect(c1.resolve("y")).toBe("y");
+  expect(x1Calls).toBe(1);
+  expect(x2Calls).toBe(1);
+  expect(x3Calls).toBe(0);
+  expect(yCalls).toBe(1);
+
+  // re-register x with x3 -> new container c2; only x should be invalidated
+  const d2 = d1.register("x", x3);
+  const c2 = d2.seal();
+
+  // 'y' remains cached; 'x' recomputed (all x factories re-run in this container)
+  expect(c2.resolve("y")).toBe("y");
+  expect(yCalls).toBe(1); // unchanged
+  expect(c2.resolve("x")).toEqual([1, 2, 3]);
+  expect(x1Calls).toBe(2); // x1 rerun in c2
+  expect(x2Calls).toBe(2); // x2 rerun in c2
+  expect(x3Calls).toBe(1); // new factory ran once
+});
+
+test("re-registering a token invalidates exactly that token's cached value", () => {
+  const runtime = DiRuntime();
+
+  let f1Calls = 0;
+  let f2Calls = 0;
+
+  function f1(): number {
+    f1Calls += 1;
+    return 1;
+  }
+  function f2(): number {
+    f2Calls += 1;
+    return 2;
+  }
+  f1.dependsOn = [] as const;
+  f2.dependsOn = [] as const;
+
+  // 1) Build c1 and populate the cache for 'x'
+  const c1 = runtime.startContainer().register("x", f1);
+  const s1 = c1.seal();
+
+  expect(s1.resolve("x")).toBe(1); // populates cache: f1 ran once
+  expect(s1.resolve("x")).toBe(1); // cached
+  expect(f1Calls).toBe(1);
+  expect(f2Calls).toBe(0);
+
+  // 2) Fork: re-register 'x' in c2
+  const c2 = c1.register("x", f2);
+  const s2 = c2.seal();
+
+  // 3) Invalidate should affect ONLY 'x':
+  //    'x' must recompute (both f1 and f2 run), but other tokens (if any) would remain cached.
+  //    If you *clone* the cache and forget to delete 'x', this next line will re-use the old 1.
+  expect(s2.resolve("x")).toEqual([1, 2]);
+
+  // Verify both factories actually ran in the new container:
+  // If cache wasn't invalidated, f1Calls would still be 1 (stale value reused).
+  expect(f1Calls).toBe(2);
+  expect(f2Calls).toBe(1);
 });

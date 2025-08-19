@@ -16,7 +16,7 @@ type _AssignArray<R, K extends string, V> = K extends keyof R
     >
   : _Reconcile<R & { [P in K]: V }>;
 
-export type RegistryOf<Container> = Container extends IDiContainer<infer R>
+export type RegistryOf<Container> = Container extends IDiContainerDraft<infer R>
   ? R
   : never;
 
@@ -29,7 +29,7 @@ export interface IDiFactory<
   (this: void, ...input: Input): Output;
 }
 
-export interface IDiContainer<Registry = {}> {
+export interface IDiContainerDraft<Registry = {}> {
   register<
     Token extends string,
     Output,
@@ -40,28 +40,30 @@ export interface IDiContainer<Registry = {}> {
     factory: IDiFactory<Output, Input, Dependencies> & {
       dependsOn?: Dependencies;
     }
-  ): IDiContainer<_AssignArray<Registry, Token, Output>>;
+  ): IDiContainerDraft<_AssignArray<Registry, Token, Output>>;
 
   seal(): IDiSealedContainer<Registry>;
 }
 
 export interface IDiSealedContainer<Registry = {}> {
-  bind<Fn extends (...args: any[]) => any>(fn: Fn): (this: void) => ReturnType<Fn>;
+  bind<Fn extends (...args: any[]) => any>(
+    fn: Fn
+  ): (this: void) => ReturnType<Fn>;
 
   resolve<Token extends keyof Registry>(token: Token): Registry[Token];
 }
 
 export interface IDiRuntime {
-  createContainer(): IDiContainer;
+  startContainer(): IDiContainerDraft;
 }
 
 export function DiRuntime(): IDiRuntime {
   return {
-    createContainer,
+    startContainer,
   };
 
-  function createContainer(): IDiContainer {
-    return Container(ContainerState());
+  function startContainer(): IDiContainerDraft {
+    return ContainerDraft(ContainerState());
   }
 
   type _ContainerState = {
@@ -69,32 +71,30 @@ export function DiRuntime(): IDiRuntime {
     resolvers: Map<string, (state: _ContainerState) => () => unknown>;
   };
 
-  function Container(state: _ContainerState): IDiContainer {
+  function ContainerDraft(state: _ContainerState): IDiContainerDraft {
     const cache = new Map();
 
     return {
       register,
       seal,
-    } as IDiContainer;
+    } as IDiContainerDraft;
 
-    function register(token: string, factory: IDiFactory): IDiContainer {
+    function register(token: string, factory: IDiFactory): IDiContainerDraft {
       const newState = ContainerState(state);
 
       const existing = newState.factories.get(token);
 
       if (existing) {
-        cache.delete(token);
-
-        existing.push(factory);
+        newState.factories.set(token, existing.concat([factory]));
       } else {
         newState.factories.set(token, [factory]);
       }
 
       newState.resolvers.set(token, (state) =>
-        _resolveToken.bind(state, {}, token)
+        _resolveToken.bind(undefined, state, {}, token)
       );
 
-      return Container(newState);
+      return ContainerDraft(newState);
     }
 
     function seal() {
@@ -104,9 +104,14 @@ export function DiRuntime(): IDiRuntime {
       } as IDiSealedContainer;
 
       function bind(factory: IDiFactory): Function {
-        return function (this: any, ...args: any[]) {
+        const wrapper = function (this: any, ...args: any[]) {
           return factory.apply(this, args);
-        }.bind(undefined, ...(factory.dependsOn ?? []).map(resolve));
+        };
+
+        return wrapper.bind(
+          undefined,
+          ...(factory.dependsOn ?? []).map(resolve)
+        );
       }
 
       function resolve(token: string): unknown {
@@ -126,7 +131,7 @@ export function DiRuntime(): IDiRuntime {
     };
 
     function _resolveToken(
-      this: _ContainerState,
+      state: _ContainerState,
       { path = [], seen = new Set() }: _ResolveContext,
       token: string
     ): unknown {
@@ -138,7 +143,7 @@ export function DiRuntime(): IDiRuntime {
         throw new Error(`cycle detected: ${cyclePath.join(" > ")}`);
       }
 
-      const factory = this.factories.get(token) as IDiFactory[];
+      const factory = state.factories.get(token) as IDiFactory[];
 
       seen.add(token);
 
@@ -149,7 +154,7 @@ export function DiRuntime(): IDiRuntime {
 
         const dependencies =
           factory.dependsOn?.map((dependency) =>
-            _resolveToken.call(this, context, dependency)
+            _resolveToken(state, context, dependency)
           ) ?? [];
 
         return factory.apply(undefined, dependencies);

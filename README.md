@@ -59,21 +59,21 @@ import { DiRuntime } from "never-di";
 
 const runtime = DiRuntime();
 
-const container = runtime.createContainer();
+const draft = runtime.startContainer();
+
+foo.dependsOn = [] as const;
 
 function foo(): number {
   return 1;
 }
 
-foo.dependsOn = [] as const;
+bar.dependsOn = ["foo"] as const;
 
 function bar(foo: number): string {
   return `bar(${foo})`;
 }
 
-bar.dependsOn = ["foo"] as const;
-
-const sealed = container
+const container = draft
   .register("foo", foo)
   .register("bar", bar)
   .seal();
@@ -84,24 +84,24 @@ console.log(sealed.resolve("bar")); // "bar(1)"
 ### Multi-binding Example
 
 ```ts
+handler1.dependsOn = [] as const;
+
 function handler1(): string {
   return "h1";
 }
 
-handler1.dependsOn = [] as const;
+handler2.dependsOn = [] as const;
 
 function handler2(): string {
   return "h2";
 }
 
-handler2.dependsOn = [] as const;
-
-const sealed = container
+const container = draft
   .register("handler", handler1)
   .register("handler", handler2)
   .seal();
 
-console.log(sealed.resolve("handler")); // ["h1", "h2"]
+console.log(container.resolve("handler")); // ["h1", "h2"]
 ```
 
 ## Contributing
