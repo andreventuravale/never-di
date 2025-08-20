@@ -133,13 +133,9 @@ console.log(addFn()); // 5
 ```ts
 import { startContainer } from "never-di";
 
-n1.dependsOn = [] as const;
-
 function n1(): number {
   return 1;
 }
-
-s1.dependsOn = [] as const;
 
 function s1(): string {
   return "oops";

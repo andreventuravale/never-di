@@ -560,13 +560,9 @@ test("multi-bind: type-check of union of dependsOn", () => {
 });
 
 test("readme example", () => {
-  n1.dependsOn = [] as const;
-
   function n1(): number {
     return 1;
   }
-
-  s1.dependsOn = [] as const;
 
   function s1(): string {
     return "oops";
