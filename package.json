@@ -1,28 +1,27 @@
 {
   "name": "never-di",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A lightweight, immutable, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "types": "./dist/src/index.d.ts"
     }
   },
   "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
+    "dist/index.js",
+    "dist/src/index.d.ts"
   ],
   "sideEffects": false,
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build:esm": "esbuild ./src/index.ts --bundle --format=esm --platform=node --target=node20 --outfile=dist/index.js --sourcemap",
+    "build:esm": "esbuild ./src/index.ts --bundle --format=esm --platform=node --target=node20 --outdir=dist --sourcemap",
     "build:types": "tsc -p tsconfig.build.json",
     "build": "npm run clean && npm run build:types && npm run build:esm",
     "clean": "rimraf dist",
