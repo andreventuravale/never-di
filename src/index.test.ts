@@ -558,3 +558,28 @@ test("multi-bind: type-check of union of dependsOn", () => {
     y: number[];
   }>();
 });
+
+test("readme example", () => {
+  n1.dependsOn = [] as const;
+
+  function n1(): number {
+    return 1;
+  }
+
+  s1.dependsOn = [] as const;
+
+  function s1(): string {
+    return "oops";
+  }
+
+  const c1 = startContainer().register("value", n1);
+
+  // ❌ Compile-time error: cannot change multi-bind element type from number -> string
+  // @ts-expect-error
+  const c2 = c1.register("value", s1);
+
+  // If forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
+  // producing a type error when sealing.
+  // @ts-expect-error
+  console.log(c2.seal().resolve("value")); // [1, "oops"]
+});

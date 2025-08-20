@@ -67,6 +67,7 @@ function foo(): number {
 }
 
 bar.dependsOn = ["foo"] as const;
+
 function bar(foo: number): string {
   return `bar(${foo})`;
 }
@@ -134,19 +135,23 @@ import { startContainer } from "never-di";
 
 n1.dependsOn = [] as const;
 
-function n1(): number { return 1; }
+function n1(): number {
+  return 1;
+}
 
 s1.dependsOn = [] as const;
 
-function s1(): string { return "oops"; }
+function s1(): string {
+  return "oops";
+}
 
 const c1 = startContainer().register("value", n1);
 
 // ❌ Compile-time error: cannot change multi-bind element type from number -> string
-// @ts-expect-error
 const c2 = c1.register("value", s1);
 
-// If you force it with @ts-expect-error, runtime still works, but types collapse to `never`
+// If forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
+// producing a type error when sealing.
 console.log(c2.seal().resolve("value")); // [1, "oops"]
 ```
 
