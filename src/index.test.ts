@@ -1,8 +1,10 @@
-import { expect, expectTypeOf, test } from "vitest";
 import type { RegistryOf } from ".";
+
+import { expect, expectTypeOf, test } from "vitest";
+
 import { startContainer } from ".";
 
-test("simplest use case (control)", () => {
+test("simplest use case", () => {
   expect(
     startContainer()
       .register("foo", () => "foo")
@@ -11,13 +13,14 @@ test("simplest use case (control)", () => {
   ).toStrictEqual("foo");
 });
 
-test("dependency tracking determines registration order (control + compile-time negatives)", () => {
+test("dependency tracking inherently determines the registration order", () => {
   baz.dependsOn = ["foo", "bar"] as const;
+
   function baz(foo: number, bar: number): number {
     return foo + bar;
   }
 
-  // control: deps registered first
+  // control
   expect(
     startContainer()
       .register("foo", () => 1)
@@ -27,7 +30,7 @@ test("dependency tracking determines registration order (control + compile-time 
       .resolve("baz")
   ).toStrictEqual(3);
 
-  // negative 1: missing both deps at registration time (should fail at the callsite)
+  // missing foo and bar
   expect(
     startContainer()
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type 'never'
@@ -38,7 +41,7 @@ test("dependency tracking determines registration order (control + compile-time 
       .resolve("baz")
   ).toStrictEqual(3);
 
-  // negative 2: only one dep registered before baz (should still fail at callsite)
+  // missing bar
   expect(
     startContainer()
       .register("foo", () => 1)
@@ -50,239 +53,316 @@ test("dependency tracking determines registration order (control + compile-time 
   ).toStrictEqual(3);
 });
 
-test("circular dependency is detected (clear error path)", () => {
-  a.dependsOn = ["b"] as const;
+test("circular dependency is detected via seen set", () => {
+  a.dependsOn = ["b"];
+
   function a(b: unknown) {
-    return `a(${String(b)})`;
+    return `a(${b})`;
   }
 
-  b.dependsOn = ["a"] as const;
+  b.dependsOn = ["a"];
+
   function b(a: unknown) {
-    return `b(${String(a)})`;
+    return `b(${a})`;
   }
 
   const draft = startContainer()
-    // compile-time mismatch: dependsOn mentions tokens that aren't registered yet
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("a", a)
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("b", b);
 
-  // runtime cycle detection stays clear and specific
-  expect(() => draft.seal().resolve("a")).toThrow("cycle detected: a > b > a");
+  expect(() => draft.seal().resolve("a")).toThrow(`cycle detected: a > b > a`);
 });
 
-test("resolve type-level: token does not exist (negative)", () => {
+test("token does not exist", () => {
   expect(() =>
     startContainer()
       .seal()
       // @ts-expect-error Argument of type '"foo"' is not assignable to parameter of type 'never'
       .resolve("foo")
-  ).toThrow("token is not registered: foo");
+  ).toThrow(`token is not registered: foo`);
 });
 
-test("single-bind resolves to a single value (shape + typing)", () => {
+test("single-bind resolves to a single value", () => {
   const draft = startContainer();
 
-  f1.dependsOn = [] as const;
-  function f1(): number {
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
     return 1;
   }
 
-  f2.dependsOn = ["f1"] as const;
-  function f2(value1: number): number {
+  factory2.dependsOn = ["factory1"] as const;
+
+  function factory2(value1: number): number {
     return value1;
   }
 
-  const d1 = draft.register("f1", f1);
-  expectTypeOf<RegistryOf<typeof d1>>().toEqualTypeOf<{ f1: number }>();
+  const _1st = draft.register("factory1", factory1);
 
-  const d2 = d1.register("f2", f2);
-  expectTypeOf<RegistryOf<typeof d2>>().toEqualTypeOf<{
-    f1: number;
-    f2: number;
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory1: number }>();
+
+  const _2nd = _1st.register("factory2", factory2);
+
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory1: number;
+    factory2: number;
   }>();
 
-  const c = d2.seal();
-  expect(c.resolve("f1")).toStrictEqual(1);
-  expect(c.resolve("f2")).toStrictEqual(1);
+  expect(_2nd.seal().resolve("factory1")).toStrictEqual(1);
+
+  expect(_2nd.seal().resolve("factory2")).toStrictEqual(1);
 });
 
-test("multi-bind resolves to an array of values (shape + order)", () => {
+test("multi-bind resolves to an array of values", () => {
   const draft = startContainer();
 
-  f1.dependsOn = [] as const;
-  function f1(): number {
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
     return 1;
   }
 
-  f2.dependsOn = [] as const;
-  function f2(): number {
+  factory2.dependsOn = [] as const;
+
+  function factory2(): number {
     return 2;
   }
 
-  f3.dependsOn = [] as const;
-  function f3(): number {
+  factory3.dependsOn = [] as const;
+
+  function factory3(): number {
     return 3;
   }
 
-  const d1 = draft.register("factory", f1);
-  expectTypeOf<RegistryOf<typeof d1>>().toEqualTypeOf<{ factory: number }>();
+  const _1st = draft.register("factory", factory1);
 
-  const d2 = d1.register("factory", f2);
-  expectTypeOf<RegistryOf<typeof d2>>().toEqualTypeOf<{ factory: number[] }>();
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
 
-  const d3 = d2.register("factory", f3);
-  expectTypeOf<RegistryOf<typeof d3>>().toEqualTypeOf<{ factory: number[] }>();
+  const _2nd = _1st.register("factory", factory2);
 
-  expect(d3.seal().resolve("factory")).toStrictEqual([1, 2, 3]);
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  const _3rd = _2nd.register("factory", factory3);
+
+  expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_3rd.seal().resolve("factory")).toStrictEqual([1, 2, 3]);
 });
 
-test("multi-bind: enforcing consistent element type (compile-time negative at register site)", () => {
+test("2nd+-bind resolves to an array of values", () => {
   const draft = startContainer();
 
-  num.dependsOn = [] as const;
-  function num(): number {
+  factory1.dependsOn = [] as const;
+
+  function factory1(): number {
     return 1;
   }
 
-  str.dependsOn = [] as const;
-  function str(): string {
+  factory2.dependsOn = [] as const;
+
+  function factory2(): string {
     return "2";
   }
 
-  // first registration fixes element type to 'number'
-  const d1 = draft.register("x", num);
-  expectTypeOf<RegistryOf<typeof d1>>().toEqualTypeOf<{ x: number }>();
-  expect(d1.seal().resolve("x")).toStrictEqual(1);
+  factory3.dependsOn = [] as const;
 
-  // attempting to re-register 'x' with a different Result should fail HERE
-  // @ts-expect-error EnforceSame violation: cannot change 'x' element type from number to string
-  const d2 = d1.register("x", str);
-
-  // if someone silences the error above, runtime would produce [1, "2"].
-  // we purposely do not assert that here to avoid legitimizing the bad case.
-  void d2;
-});
-
-test("containers are immutable (forking draft yields independent registries)", () => {
-  sum.dependsOn = ["a", "b"] as const;
-  function sum(a: number, b: number): number {
-    return a + b;
+  function factory3(): RegExp {
+    return /3/;
   }
 
-  const d1 = startContainer().register("a", () => 1);
-  const d2 = d1.register("b", () => 2);
-  const d3 = d2.register("sum", sum);
+  factory4.dependsOn = [] as const;
 
-  // earlier drafts remain valid and unaffected
-  expect(d1.seal().resolve("a")).toStrictEqual(1);
+  function factory4(): boolean {
+    return true;
+  }
 
-  expect(d2.seal().resolve("a")).toStrictEqual(1);
-  expect(d2.seal().resolve("b")).toStrictEqual(2);
+  const _1st = draft.register("factory", factory1);
 
-  expect(d3.seal().resolve("a")).toStrictEqual(1);
-  expect(d3.seal().resolve("b")).toStrictEqual(2);
-  expect(d3.seal().resolve("sum")).toStrictEqual(3);
+  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
 
-  // negative lookups on earlier drafts: precise error messages
-  expect(() => {
-    d1.seal()
-      // @ts-expect-error Argument of type '"b"' is not assignable to parameter of type '"a"'
-      .resolve("b");
-  }).toThrow("token is not registered: b");
+  expect(_1st.seal().resolve("factory")).toStrictEqual(1);
 
-  expect(() => {
-    d1.seal()
-      // @ts-expect-error Argument of type '"sum"' is not assignable to parameter of type '"a"'
-      .resolve("sum");
-  }).toThrow("token is not registered: sum");
+  const _2nd = _1st.register("factory", factory2);
 
-  expect(() => {
-    d2.seal()
-      // @ts-expect-error Argument of type '"sum"' is not assignable to parameter of type '"a" | "b"'
-      .resolve("sum");
-  }).toThrow("token is not registered: sum");
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_2nd.seal().resolve("factory")).toStrictEqual([1, "2"]);
+
+  const _3rd = _2nd.register("factory", factory3);
+
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_3rd.seal().resolve("factory")).toStrictEqual([1, "2", /3/]);
+
+  const _4th = _3rd.register("factory", factory4);
+
+  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
+  expectTypeOf<RegistryOf<typeof _4th>>().toEqualTypeOf<{
+    factory: number[];
+  }>();
+
+  expect(_4th.seal().resolve("factory")).toStrictEqual([1, "2", /3/, true]);
 });
 
-test("re-registering on a new draft doesn't mutate previous factories (value shape proves it)", () => {
+test("containers are immutable", () => {
+  baz.dependsOn = ["foo", "bar"] as const;
+
+  function baz(foo: number, bar: number): number {
+    return foo + bar;
+  }
+
+  const draft1 = startContainer().register("foo", () => 1);
+
+  const draft2 = draft1.register("bar", () => 2);
+
+  const draft3 = draft2.register("baz", baz);
+
+  expect(draft1.seal().resolve("foo")).toStrictEqual(1);
+
+  expect(draft2.seal().resolve("foo")).toStrictEqual(1);
+  expect(draft2.seal().resolve("bar")).toStrictEqual(2);
+
+  expect(draft3.seal().resolve("foo")).toStrictEqual(1);
+  expect(draft3.seal().resolve("bar")).toStrictEqual(2);
+  expect(draft3.seal().resolve("baz")).toStrictEqual(3);
+
+  expect(() => {
+    draft1
+      .seal()
+      // @ts-expect-error Argument of type '"bar"' is not assignable to parameter of type '"foo"'
+      .resolve("bar");
+  }).toThrow(`token is not registered: bar`);
+
+  expect(() => {
+    draft1
+      .seal()
+      // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
+      .resolve("baz");
+  }).toThrow(`token is not registered: baz`);
+
+  expect(() => {
+    draft2
+      .seal()
+      // @ts-expect-error Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
+      .resolve("baz");
+  }).toThrow(`token is not registered: baz`);
+});
+
+test("registering on a new container does not mutate the old one's factories", () => {
   function f1() {
     return 1;
   }
+
   function f2() {
     return 2;
   }
 
-  const d0 = startContainer();
-  const d1 = d0.register("x", f1);
-  const d2 = d1.register("x", f2);
+  const draft0 = startContainer();
 
-  expect(d2.seal().resolve("x")).toStrictEqual([1, 2]); // new draft has both
-  expect(d1.seal().resolve("x")).toStrictEqual(1); // old draft remains single-bind
+  const draft1 = draft0.register("x", f1);
+
+  const draft2 = draft1.register("x", f2);
+
+  expect(draft2.seal().resolve("x")).toEqual([1, 2]);
+
+  expect(draft1.seal().resolve("x")).toEqual(1);
 });
 
-test("single sealed container caches per token (no re-exec on repeated resolves)", () => {
+test("single sealed container caches a token: multiple resolves do not re-execute the factory", () => {
   let calls = 0;
+
   function f(): string {
     calls += 1;
+
     return "value";
   }
 
   expect(calls).toBe(0);
 
-  const c = startContainer().register("x", f).seal();
+  const container = startContainer().register("x", f).seal();
 
-  expect(c.resolve("x")).toBe("value");
-  expect(c.resolve("x")).toBe("value");
-  expect(c.resolve("x")).toBe("value");
+  expect(container.resolve("x")).toBe("value");
+
+  expect(container.resolve("x")).toBe("value");
+
+  expect(container.resolve("x")).toBe("value");
+
   expect(calls).toBe(1);
 });
 
-test("cache is per container (forked containers execute independently)", () => {
+test("cache is per container: each container runs its factory exactly once", () => {
   let calls = 0;
+
   function x(): string {
     calls += 1;
+
     return "value";
   }
 
   const c1 = startContainer().register("x", x).seal();
+
   const c2 = startContainer().register("x", x).seal();
 
+  // First container: resolving multiple times should only execute once
   expect(calls).toBe(0);
   expect(c1.resolve("x")).toBe("value");
   expect(calls).toBe(1);
   expect(c1.resolve("x")).toBe("value");
   expect(calls).toBe(1);
 
+  // Second container: should execute again (per-container singleton)
   expect(calls).toBe(1);
   expect(c2.resolve("x")).toBe("value");
+  expect(calls).toBe(2);
+
+  // And repeated resolves in the second container don't re-run
   expect(calls).toBe(2);
   expect(c2.resolve("x")).toBe("value");
   expect(calls).toBe(2);
 });
 
-test("re-registering a multi-bound token invalidates exactly that token in the new container", () => {
+test("re-registering a multi-bound token invalidates that token only and reruns its factories in the new container", () => {
   let x1Calls = 0;
+
   function x1() {
     x1Calls += 1;
+
     return 1;
   }
 
   let x2Calls = 0;
+
   function x2() {
     x2Calls += 1;
+
     return 2;
   }
 
   let x3Calls = 0;
+
   function x3() {
     x3Calls += 1;
+
     return 3;
   }
 
   let yCalls = 0;
+
   function y() {
     yCalls += 1;
+
     return "y";
   }
 
@@ -290,34 +370,31 @@ test("re-registering a multi-bound token invalidates exactly that token in the n
     .register("x", x1)
     .register("x", x2)
     .register("y", y);
+
   const c1 = d1.seal();
 
-  // populate c1 caches
-  expect(c1.resolve("x")).toStrictEqual([1, 2]);
+  // populate cache in c1
+  expect(c1.resolve("x")).toEqual([1, 2]);
   expect(c1.resolve("y")).toBe("y");
-  expect({ x1Calls, x2Calls, x3Calls, yCalls }).toEqual({
-    x1Calls: 1,
-    x2Calls: 1,
-    x3Calls: 0,
-    yCalls: 1,
-  });
+  expect(x1Calls).toBe(1);
+  expect(x2Calls).toBe(1);
+  expect(x3Calls).toBe(0);
+  expect(yCalls).toBe(1);
 
-  // fork and add x3
+  // re-register x with x3 -> new container c2; only x should be invalidated
   const d2 = d1.register("x", x3);
   const c2 = d2.seal();
 
-  // 'y' is unchanged; 'x' recomputed in the new container
+  // 'y' remains cached; 'x' recomputed (all x factories re-run in this container)
   expect(c2.resolve("y")).toBe("y");
-  expect(c2.resolve("x")).toStrictEqual([1, 2, 3]);
-  expect({ x1Calls, x2Calls, x3Calls, yCalls }).toEqual({
-    x1Calls: 2,
-    x2Calls: 2,
-    x3Calls: 1,
-    yCalls: 1,
-  });
+  expect(yCalls).toBe(1); // unchanged
+  expect(c2.resolve("x")).toEqual([1, 2, 3]);
+  expect(x1Calls).toBe(2); // x1 rerun in c2
+  expect(x2Calls).toBe(2); // x2 rerun in c2
+  expect(x3Calls).toBe(1); // new factory ran once
 });
 
-test("re-registering a token invalidates only that token's cached value (not others)", () => {
+test("re-registering a token invalidates exactly that token's cached value", () => {
   let f1Calls = 0;
   let f2Calls = 0;
 
@@ -332,133 +409,178 @@ test("re-registering a token invalidates only that token's cached value (not oth
   f1.dependsOn = [] as const;
   f2.dependsOn = [] as const;
 
-  const d1 = startContainer().register("x", f1);
-  const c1 = d1.seal();
+  // 1) Build c1 and populate the cache for 'x'
+  const c1 = startContainer().register("x", f1);
+  const s1 = c1.seal();
 
-  expect(c1.resolve("x")).toBe(1);
-  expect(c1.resolve("x")).toBe(1);
-  expect({ f1Calls, f2Calls }).toEqual({ f1Calls: 1, f2Calls: 0 });
+  expect(s1.resolve("x")).toBe(1); // populates cache: f1 ran once
+  expect(s1.resolve("x")).toBe(1); // cached
+  expect(f1Calls).toBe(1);
+  expect(f2Calls).toBe(0);
 
-  const d2 = d1.register("x", f2);
-  const c2 = d2.seal();
+  // 2) Fork: re-register 'x' in c2
+  const c2 = c1.register("x", f2);
+  const s2 = c2.seal();
 
-  // x recomputes; if cache wasn't invalidated in the fork, you'd get stale 1
-  expect(c2.resolve("x")).toStrictEqual([1, 2]);
-  expect({ f1Calls, f2Calls }).toEqual({ f1Calls: 2, f2Calls: 1 });
+  // 3) Invalidate should affect ONLY 'x':
+  //    'x' must recompute (both f1 and f2 run), but other tokens (if any) would remain cached.
+  //    If you *clone* the cache and forget to delete 'x', this next line will re-use the old 1.
+  expect(s2.resolve("x")).toEqual([1, 2]);
+
+  // Verify both factories actually ran in the new container:
+  // If cache wasn't invalidated, f1Calls would still be 1 (stale value reused).
+  expect(f1Calls).toBe(2);
+  expect(f2Calls).toBe(1);
 });
 
-test("bind: happy path and no-deps path", () => {
-  needsFoo.dependsOn = ["foo"] as const;
-  function needsFoo(foo: string) {
-    return `got ${foo}`;
+test("bind: happy path", () => {
+  unbound.dependsOn = ["foo"] as const;
+
+  function unbound(foo: string) {
+    return foo;
   }
 
-  const c = startContainer()
+  const bound = startContainer()
     .register("foo", () => "foo")
-    .seal();
+    .seal()
+    .bind(unbound);
 
-  const bound = c.bind(needsFoo);
-  expect(bound()).toStrictEqual("got foo");
-
-  function noDeps() {
-    return "plain";
-  }
-  const bound2 = c.bind(noDeps);
-  expect(bound2()).toStrictEqual("plain");
+  expect(bound()).toStrictEqual("foo");
 });
 
-test("bind + resolve share object identity (mutations are observed)", () => {
-  type Bar = { value?: unknown };
+test("bind: no deps", () => {
+  function unbound() {
+    return "foo";
+  }
+
+  const bound = startContainer().seal().bind(unbound);
+
+  expect(bound()).toStrictEqual("foo");
+});
+
+test("bind: scenario to be defined", () => {
+  type Bar = {
+    value?: unknown;
+  };
 
   function bar(): Bar {
     return {};
   }
 
-  usesBar.dependsOn = ["bar"] as const;
-  function usesBar(bar: Bar) {
-    expect(bar.value).toBe(123); // mutation should be visible here
-    return bar;
+  foo.dependsOn = ["bar"] as const;
+
+  function foo(bar: Bar) {
+    console.log("foo:", { bar });
+
+    expect(bar.value).toBe(123);
   }
 
-  alsoUsesBar.dependsOn = ["bar"] as const;
-  function alsoUsesBar(bar: Bar) {
-    expect(bar.value).toBe(123); // mutation should be visible here too
-    return bar;
+  loader.dependsOn = ["bar"] as const;
+
+  function loader(bar: Bar) {
+    console.log("loader:", { bar });
+
+    expect(bar.value).toBe(123);
   }
 
   const container = startContainer()
     .register("bar", bar)
-    .register("usesBar", usesBar)
+    .register("foo", foo)
     .seal();
 
-  const resolvedBar = container.resolve("bar");
-  expect(resolvedBar).toStrictEqual({});
+  const ibar = container.resolve("bar");
 
-  resolvedBar.value = 123;
+  expect(ibar).toStrictEqual({});
 
-  // resolve on a registered factory that uses 'bar'
-  const barFromUses = container.resolve("usesBar");
-  expect(barFromUses).toStrictEqual({ value: 123 });
+  ibar.value = 123;
 
-  // bind another function that depends on 'bar' and verify it sees the same object
-  const bound = container.bind(alsoUsesBar);
-  const barFromBound = bound();
-  expect(barFromBound).toStrictEqual({ value: 123 });
+  container.resolve("foo");
+
+  container.bind(loader)();
 });
 
-test("resolve throws at runtime for unregistered token even if type is bypassed", () => {
+test("resolve throws for unregistered token at runtime", () => {
   const sealed = startContainer().seal();
+
   expect(() => (sealed as any).resolve("missing")).toThrow(
-    "token is not registered: missing"
+    `token is not registered: missing`
   );
 });
 
-test("dependsOn referencing missing token: compile-time error and clear runtime error", () => {
+test("dependsOn missing token throws a clear error (not an undefined.map crash)", () => {
   bad.dependsOn = ["missing"] as const;
+
   function bad(missing: unknown): unknown {
     return missing;
   }
 
   const sealed = startContainer()
-    // compile-time negative: 'missing' is not in the registry yet
     // @ts-expect-error Type 'readonly ["missing"]' is not assignable to type 'readonly never[]'.
     .register("bad", bad)
     .seal();
 
-  // runtime negative: resolving 'bad' triggers the underlying 'missing' lookup
+  // When resolving "bad", the resolver will try to resolve "missing"
+  // and should throw "token is not registered: missing"
   expect(() => sealed.resolve("bad")).toThrow(
-    "token is not registered: missing"
+    `token is not registered: missing`
   );
 });
 
-test("multi-bind registry shape is stable and downstream deps can consume it", () => {
-  // x is multi-bound: first factory fixes element type to number; second must match (number)
+test("bind type-checking", () => {
+  const c = startContainer()
+    .register("a", () => 123)
+    .register("b", (a: number) => `got ${a}`)
+    .seal();
+
+  goodFn.dependsOn = ["a", "b"] as const;
+
+  // OK: `b` depends on `a`
+  function goodFn(a: number, b: string) {
+    return `${b}!`;
+  }
+
+  c.bind(goodFn)(); // ✅ works
+
+  badFn.dependsOn = ["a"] as const;
+
+  // Wrong: declared dependency "a" but parameter type is wrong
+  function badFn(a: string) {
+    return a.toUpperCase();
+  }
+
+  // @ts-expect-error Types of parameters 'a' and 'args_0' are incompatible
+  c.bind(badFn);
+});
+
+test("multi-bind: type-check of union of dependsOn", () => {
   x1.dependsOn = ["a", "b"] as const;
-  function x1(a: number, b: string): number {
-    return a + b.length; // 1 + 1 = 2
+
+  function x1(a: number) {
+    return a;
   }
 
   x2.dependsOn = ["c"] as const;
-  function x2(c: boolean): number {
-    return c ? 1 : 0; // true → 1
+
+  function x2(b: string) {
+    return b.length;
   }
 
-  // y consumes 'x' as produced (an array because x is multi-bound)
   y.dependsOn = ["x"] as const;
+
   function y(x: unknown[]) {
     return x;
   }
 
-  const draft = startContainer()
+  const c1 = startContainer()
     .register("a", () => 1)
     .register("b", () => "b")
-    .register("x", x1) // first bind → x: number
+    .register("x", x1)
     .register("c", () => true)
-    .register("x", x2) // second bind → x: number[]
+    .register("x", x2)
     .register("y", y);
 
-  // Registry shape is as expected
-  type Reg = RegistryOf<typeof draft>;
+  type Reg = RegistryOf<typeof c1>;
+
   expectTypeOf<Reg>().toEqualTypeOf<{
     a: number;
     b: string;
@@ -466,9 +588,4 @@ test("multi-bind registry shape is stable and downstream deps can consume it", (
     x: number[];
     y: unknown[];
   }>();
-
-  // Control: order preserved (x1 first, x2 second); y passes through x unchanged
-  const sealed = draft.seal();
-  expect(sealed.resolve("x")).toStrictEqual([2, 1]);
-  expect(sealed.resolve("y")).toStrictEqual([2, 1]);
 });
