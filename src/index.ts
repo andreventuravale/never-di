@@ -7,16 +7,6 @@ export interface Factory<
   (this: void, ...args: In): Out;
 }
 
-export type RegistryOf<Container> = Container extends ContainerDraft<infer R>
-  ? R
-  : never;
-
-export type DerivedContainerDraft<
-  Registry,
-  IncomingTk extends string,
-  IncomingFactoryOut
-> = ContainerDraft<_AssignArray<Registry, IncomingTk, IncomingFactoryOut>>;
-
 export interface ContainerDraft<Registry = {}> {
   register<
     Tk extends string,
@@ -26,16 +16,68 @@ export interface ContainerDraft<Registry = {}> {
   >(
     tk: Tk,
     factory: Factory<Out, In, Deps> & { dependsOn?: Deps }
-  ): DerivedContainerDraft<Registry, Tk, Out>;
+  ): _DerivedContainerDraft<Registry, Tk, Out>;
 
   seal(): Container<Registry>;
 }
 
 export interface Container<Registry = {}> {
-  bind<F extends (...args: any[]) => any>(f: F): (this: void) => ReturnType<F>;
+  bind<
+    Out,
+    Deps extends readonly (keyof Registry & string)[],
+    Args extends _DepsToArgs<Registry, Deps>
+  >(
+    f: Factory<Out, Args, Deps> & { dependsOn?: Deps }
+  ): (this: void) => Out;
 
   resolve<Tk extends keyof Registry>(token: Tk): Registry[Tk];
 }
+
+export type RegistryOf<Container> = Container extends ContainerDraft<
+  infer Registry
+>
+  ? Registry
+  : never;
+
+type _AssignArray<R, K extends string, V> = K extends keyof R
+  ? _Reconcile<
+      Omit<R, K> & {
+        [P in K]: _EnforceSame<_ElementType<R[K]>, V>[];
+      }
+    >
+  : _Reconcile<R & { [P in K]: V }>;
+
+type _ContainerState = {
+  cache: Map<string, unknown>;
+  factories: Map<string, Factory[]>;
+};
+
+type _DepsToArgs<Reg, Deps extends readonly (keyof Reg & string)[]> = _Mutable<{
+  [I in keyof Deps]: Reg[Deps[I]];
+}>;
+
+type _DerivedContainerDraft<
+  Registry,
+  IncomingTk extends string,
+  IncomingFactoryOut
+> = ContainerDraft<_AssignArray<Registry, IncomingTk, IncomingFactoryOut>>;
+
+type _ElementType<T> = T extends readonly (infer U)[] ? U : T;
+
+type _EnforceSame<A, B> = [A] extends [B]
+  ? [B] extends [A]
+    ? A
+    : never
+  : never;
+
+type _Mutable<T extends readonly unknown[]> = [...T];
+
+type _Reconcile<T> = { [K in keyof T]: T[K] } & {};
+
+type _ResolveContext = {
+  path?: string[];
+  seen?: Set<string>;
+};
 
 export function startContainer(): ContainerDraft {
   return _createContainerDraft(_createContainerState());
@@ -129,31 +171,3 @@ function _resolve(
 
   return value;
 }
-
-type _AssignArray<R, K extends string, V> = K extends keyof R
-  ? _Reconcile<
-      Omit<R, K> & {
-        [P in K]: _EnforceSame<_ElementType<R[K]>, V>[];
-      }
-    >
-  : _Reconcile<R & { [P in K]: V }>;
-
-type _ContainerState = {
-  cache: Map<string, unknown>;
-  factories: Map<string, Factory[]>;
-};
-
-type _ElementType<T> = T extends readonly (infer U)[] ? U : T;
-
-type _EnforceSame<A, B> = [A] extends [B]
-  ? [B] extends [A]
-    ? A
-    : never
-  : never;
-
-type _Reconcile<T> = { [K in keyof T]: T[K] } & {};
-
-type _ResolveContext = {
-  path?: string[];
-  seen?: Set<string>;
-};

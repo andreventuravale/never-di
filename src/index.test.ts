@@ -515,3 +515,29 @@ test("dependsOn missing token throws a clear error (not an undefined.map crash)"
     `token is not registered: missing`
   );
 });
+
+test("bind type-checking", () => {
+  const c = startContainer()
+    .register("a", () => 123)
+    .register("b", (a: number) => `got ${a}`)
+    .seal();
+
+  goodFn.dependsOn = ["a", "b"] as const;
+
+  // OK: `b` depends on `a`
+  function goodFn(a: number, b: string) {
+    return `${b}!`;
+  }
+
+  c.bind(goodFn)(); // ✅ works
+
+  badFn.dependsOn = ["a"] as const;
+
+  // Wrong: declared dependency "a" but parameter type is wrong
+  function badFn(a: string) {
+    return a.toUpperCase();
+  }
+
+  // @ts-expect-error — `"a"` resolves to number, not string
+  c.bind(badFn)();
+});
