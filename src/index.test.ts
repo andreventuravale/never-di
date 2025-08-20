@@ -538,6 +538,44 @@ test("bind type-checking", () => {
     return a.toUpperCase();
   }
 
-  // @ts-expect-error — `"a"` resolves to number, not string
-  c.bind(badFn)();
+  // @ts-expect-error Types of parameters 'a' and 'args_0' are incompatible
+  c.bind(badFn);
+});
+
+test("multi-bind: type-check of union of dependsOn", () => {
+  x1.dependsOn = ["a", "b"] as const;
+
+  function x1(a: number) {
+    return a;
+  }
+
+  x2.dependsOn = ["c"] as const;
+
+  function x2(b: string) {
+    return b.length;
+  }
+
+  y.dependsOn = ["x"] as const;
+
+  function y(x: unknown[]) {
+    return x;
+  }
+
+  const c1 = startContainer()
+    .register("a", () => 1)
+    .register("b", () => "b")
+    .register("x", x1)
+    .register("c", () => true)
+    .register("x", x2)
+    .register("y", y);
+
+  type Reg = RegistryOf<typeof c1>;
+
+  expectTypeOf<Reg>().toEqualTypeOf<{
+    a: number;
+    b: string;
+    c: boolean;
+    x: number[];
+    y: unknown[];
+  }>();
 });
