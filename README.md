@@ -57,7 +57,7 @@ Unlike many DI frameworks, `never-di` has **one scope only**: **singleton**.
 
 ## Usage
 
-### Basic Example
+### Basics
 
 ```ts
 import { startContainer } from "never-di";
@@ -80,7 +80,7 @@ const container = startContainer()
 console.log(container.resolve("bar")); // "bar(1)"
 ```
 
-### Multi-binding Example
+### Multi-binding
 
 > From the second registration onward, the token’s type becomes an array of its original element type.
 
@@ -126,7 +126,7 @@ const addFn = container.bind(add);
 console.log(addFn()); // 5
 ```
 
-### Multi-binding Type Safety
+### Multi-binding type safety
 
 > Registering a factory under an existing token with a different type breaks the fluent chain, forcing the user to correct the types.
 
