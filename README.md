@@ -38,7 +38,7 @@ Unlike many DI frameworks, `never-di` has **one scope only**: **singleton**.
 ### What about other scopes?
 
 - **Transient** (new instance every resolve) is **not planned**.
-  - If you need transient behavior, implement it inside your factory (e.g. return `() => new Foo()`).
+  - If you need transient behavior, implement it inside your factory.
 - **Per-request scope** would require creating a container per request.
   - This is supported naturally since containers are immutable and cheap to create.
 - **Custom scopes** are intentionally excluded.
