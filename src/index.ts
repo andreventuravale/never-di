@@ -11,12 +11,16 @@ export interface ContainerDraft<Registry = {}> {
   register<
     Tk extends string,
     Result,
-    Args extends unknown[] = unknown[],
-    Deps extends readonly Extract<keyof Registry, string>[] = []
+    Args extends unknown[] = [],
+    Deps extends readonly (keyof Registry & string)[] = []
   >(
     tk: Tk,
     factory: Factory<Result, Args, Deps>
-  ): DerivedContainerDraft<Registry, Tk, Result>;
+  ): Tk extends keyof Registry
+    ? Result extends ElementType<Registry[Tk]>
+      ? ContainerDraft<Collapse<Omit<Registry, Tk> & { [P in Tk]: Result[] }>>
+      : never
+    : ContainerDraft<Collapse<Registry & { [P in Tk]: Result }>>;
 
   seal(): Container<Registry>;
 }
@@ -30,7 +34,7 @@ export interface Container<Registry = {}> {
     factory: Factory<Result, Args, Deps>
   ): (this: void) => Result;
 
-  resolve<Tk extends keyof Registry>(token: Tk): Registry[Tk];
+  resolve<Tk extends keyof Registry>(tk: Tk): Registry[Tk];
 }
 
 export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
@@ -38,6 +42,8 @@ export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
 type AssignArray<R, K extends string, V> = K extends keyof R
   ? Reconcile<Omit<R, K> & { [P in K]: EnforceSame<ElementType<R[K]>, V>[] }>
   : Reconcile<R & { [P in K]: V }>;
+
+type Collapse<T> = { [K in keyof T]: T[K] };
 
 type ContainerState = {
   cache: Map<string, unknown>;

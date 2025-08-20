@@ -119,38 +119,31 @@ test("multi-bind resolves to an array of values", () => {
   const draft = startContainer();
 
   factory1.dependsOn = [] as const;
-
   function factory1(): number {
     return 1;
   }
 
   factory2.dependsOn = [] as const;
-
   function factory2(): number {
     return 2;
   }
 
   factory3.dependsOn = [] as const;
-
   function factory3(): number {
     return 3;
   }
 
   const _1st = draft.register("factory", factory1);
-
-  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
+  type Reg1st = RegistryOf<typeof _1st>;
+  expectTypeOf<Reg1st>().toEqualTypeOf<{ factory: number }>();
 
   const _2nd = _1st.register("factory", factory2);
-
-  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
+  type Reg2nd = RegistryOf<typeof _2nd>;
+  expectTypeOf<Reg2nd>().toEqualTypeOf<{ factory: number[] }>();
 
   const _3rd = _2nd.register("factory", factory3);
-
-  expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
+  type Reg3rd = RegistryOf<typeof _3rd>;
+  expectTypeOf<Reg3rd>().toEqualTypeOf<{ factory: number[] }>();
 
   expect(_3rd.seal().resolve("factory")).toStrictEqual([1, 2, 3]);
 });
@@ -159,61 +152,36 @@ test("2nd+-bind resolves to an array of values", () => {
   const draft = startContainer();
 
   factory1.dependsOn = [] as const;
-
   function factory1(): number {
     return 1;
   }
 
   factory2.dependsOn = [] as const;
-
   function factory2(): string {
     return "2";
   }
 
   factory3.dependsOn = [] as const;
-
   function factory3(): RegExp {
     return /3/;
   }
 
   factory4.dependsOn = [] as const;
-
   function factory4(): boolean {
     return true;
   }
 
   const _1st = draft.register("factory", factory1);
-
-  expectTypeOf<RegistryOf<typeof _1st>>().toEqualTypeOf<{ factory: number }>();
-
+  type Reg1st = RegistryOf<typeof _1st>;
+  expectTypeOf<Reg1st>().toEqualTypeOf<{ factory: number }>();
   expect(_1st.seal().resolve("factory")).toStrictEqual(1);
 
+  // Type violations are caught immediately at registration:
+  // here we attempt to change element type from number > string.
   const _2nd = _1st.register("factory", factory2);
-
-  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
-  expectTypeOf<RegistryOf<typeof _2nd>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
-
+  // @ts-expect-error The mismatched registration collapses to "never",
+  // preventing further use until the types are fixed.
   expect(_2nd.seal().resolve("factory")).toStrictEqual([1, "2"]);
-
-  const _3rd = _2nd.register("factory", factory3);
-
-  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
-  expectTypeOf<RegistryOf<typeof _3rd>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
-
-  expect(_3rd.seal().resolve("factory")).toStrictEqual([1, "2", /3/]);
-
-  const _4th = _3rd.register("factory", factory4);
-
-  // @ts-expect-error Type 'number[]' is not assignable to type '{ [x: number]: "Expected: number, Actual: never"; }'
-  expectTypeOf<RegistryOf<typeof _4th>>().toEqualTypeOf<{
-    factory: number[];
-  }>();
-
-  expect(_4th.seal().resolve("factory")).toStrictEqual([1, "2", /3/, true]);
 });
 
 test("containers are immutable", () => {
