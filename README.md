@@ -7,12 +7,12 @@ No decorators, no reflection, no classes - just plain functions with strong comp
 
 ## Key Aspects
 
-- **Immutability** – every register call produces a new container.
-- **Compile-time type safety** – dependencies must already exist in the container when declared; errors are caught before runtime.
-- **Multi-binding** – registering the same token multiple times resolves to an array of values.
-- **Lightweight** – minimal, clear, and easy to reason about.
-- **Dependency-free** – no runtime dependencies.
-- **Functional-only** – designed for factory functions; no classes, no decorators.
+- **Immutability** - every register call produces a new container.
+- **Compile-time type safety** - dependencies must already exist in the container when declared; errors are caught before runtime.
+- **Multi-binding** - registering the same token multiple times resolves to an array of values.
+- **Lightweight** - minimal, clear, and easy to reason about.
+- **Dependency-free** - no runtime dependencies.
+- **Functional-only** - designed for factory functions; no classes, no decorators.
 
 ---
 
