@@ -62,7 +62,6 @@ Unlike many DI frameworks, `never-di` has **one scope only**: **singleton**.
 ```ts
 import { startContainer } from "never-di";
 
-foo.dependsOn = [] as const;
 function foo(): number {
   return 1;
 }
@@ -85,12 +84,10 @@ console.log(container.resolve("bar")); // "bar(1)"
 ```ts
 import { startContainer } from "never-di";
 
-handler1.dependsOn = [] as const;
 function handler1(): string {
   return "h1";
 }
 
-handler2.dependsOn = [] as const;
 function handler2(): string {
   return "h2";
 }
