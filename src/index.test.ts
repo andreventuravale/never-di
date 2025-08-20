@@ -178,9 +178,10 @@ test("2nd+-bind resolves to an array of values", () => {
 
   // Type violations are caught immediately at registration:
   // here we attempt to change element type from number > string.
-  const _2nd = _1st.register("factory", factory2);
   // @ts-expect-error The mismatched registration collapses to "never",
+  const _2nd = _1st.register("factory", factory2);
   // preventing further use until the types are fixed.
+  // @ts-expect-error The mismatched registration collapses to "never",
   expect(_2nd.seal().resolve("factory")).toStrictEqual([1, "2"]);
 });
 

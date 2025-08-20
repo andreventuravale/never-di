@@ -81,6 +81,8 @@ console.log(container.resolve("bar")); // "bar(1)"
 
 ### Multi-binding Example
 
+> From the second registration onward, the token’s type becomes an array of its original element type.
+
 ```ts
 import { startContainer } from "never-di";
 
@@ -98,6 +100,54 @@ const container = startContainer()
   .seal();
 
 console.log(container.resolve("handler")); // ["h1", "h2"]
+```
+
+### The bind method
+
+> Returns a function of the same return type, with dependencies pre-bound from the container.
+
+```ts
+import { startContainer } from "never-di";
+
+add.dependsOn = ["x", "y"] as const;
+
+function add(x: number, y: number): number {
+  return x + y;
+}
+
+const container = startContainer()
+  .register("x", () => 2)
+  .register("y", () => 3)
+  .seal();
+
+const addFn = container.bind(add);
+
+console.log(addFn()); // 5
+```
+
+### Multi-binding Type Safety
+
+> Registering a factory under an existing token with a different type breaks the fluent chain, forcing the user to correct the types.
+
+```ts
+import { startContainer } from "never-di";
+
+n1.dependsOn = [] as const;
+
+function n1(): number { return 1; }
+
+s1.dependsOn = [] as const;
+
+function s1(): string { return "oops"; }
+
+const c1 = startContainer().register("value", n1);
+
+// ❌ Compile-time error: cannot change multi-bind element type from number -> string
+// @ts-expect-error
+const c2 = c1.register("value", s1);
+
+// If you force it with @ts-expect-error, runtime still works, but types collapse to `never`
+console.log(c2.seal().resolve("value")); // [1, "oops"]
 ```
 
 ---
