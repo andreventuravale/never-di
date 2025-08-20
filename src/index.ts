@@ -11,6 +11,12 @@ export type RegistryOf<Container> = Container extends ContainerDraft<infer R>
   ? R
   : never;
 
+export type DerivedContainerDraft<
+  Registry,
+  IncomingTk extends string,
+  IncomingFactoryOut
+> = ContainerDraft<_AssignArray<Registry, IncomingTk, IncomingFactoryOut>>;
+
 export interface ContainerDraft<Registry = {}> {
   register<
     Tk extends string,
@@ -19,10 +25,8 @@ export interface ContainerDraft<Registry = {}> {
     Deps extends readonly Extract<keyof Registry, string>[] = []
   >(
     tk: Tk,
-    factory: Factory<Out, In, Deps> & {
-      dependsOn?: Deps;
-    }
-  ): ContainerDraft<_AssignArray<Registry, Tk, Out>>;
+    factory: Factory<Out, In, Deps> & { dependsOn?: Deps }
+  ): DerivedContainerDraft<Registry, Tk, Out>;
 
   seal(): Container<Registry>;
 }
