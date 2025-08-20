@@ -448,6 +448,16 @@ test("bind: happy path", () => {
   expect(bound()).toStrictEqual("foo");
 });
 
+test("bind: no deps", () => {
+  function unbound() {
+    return "foo";
+  }
+
+  const bound = startContainer().seal().bind(unbound);
+
+  expect(bound()).toStrictEqual("foo");
+});
+
 test("bind: scenario to be defined", () => {
   type Bar = {
     value?: unknown;

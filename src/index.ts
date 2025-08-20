@@ -1,173 +1,149 @@
 export interface Factory<
-  Out = unknown,
-  In extends unknown[] = unknown[],
+  Result = unknown,
+  Args extends unknown[] = unknown[],
   Deps extends readonly string[] = readonly []
 > {
   readonly dependsOn?: Deps;
-  (this: void, ...args: In): Out;
+  (this: void, ...args: Args): Result;
 }
 
 export interface ContainerDraft<Registry = {}> {
   register<
     Tk extends string,
-    Out,
-    In extends unknown[] = unknown[],
+    Result,
+    Args extends unknown[] = unknown[],
     Deps extends readonly Extract<keyof Registry, string>[] = []
   >(
     tk: Tk,
-    factory: Factory<Out, In, Deps> & { dependsOn?: Deps }
-  ): _DerivedContainerDraft<Registry, Tk, Out>;
+    factory: Factory<Result, Args, Deps>
+  ): DerivedContainerDraft<Registry, Tk, Result>;
 
   seal(): Container<Registry>;
 }
 
 export interface Container<Registry = {}> {
   bind<
-    Out,
-    Deps extends readonly (keyof Registry & string)[],
-    Args extends _DepsToArgs<Registry, Deps>
+    Result,
+    Deps extends readonly KeysOf<Registry>[],
+    Args extends DepsToArgs<Registry, Deps>
   >(
-    f: Factory<Out, Args, Deps> & { dependsOn?: Deps }
-  ): (this: void) => Out;
+    factory: Factory<Result, Args, Deps>
+  ): (this: void) => Result;
 
   resolve<Tk extends keyof Registry>(token: Tk): Registry[Tk];
 }
 
-export type RegistryOf<Container> = Container extends ContainerDraft<
-  infer Registry
->
-  ? Registry
-  : never;
+export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
 
-type _AssignArray<R, K extends string, V> = K extends keyof R
-  ? _Reconcile<
-      Omit<R, K> & {
-        [P in K]: _EnforceSame<_ElementType<R[K]>, V>[];
-      }
-    >
-  : _Reconcile<R & { [P in K]: V }>;
+type AssignArray<R, K extends string, V> = K extends keyof R
+  ? Reconcile<Omit<R, K> & { [P in K]: EnforceSame<ElementType<R[K]>, V>[] }>
+  : Reconcile<R & { [P in K]: V }>;
 
-type _ContainerState = {
+type ContainerState = {
   cache: Map<string, unknown>;
   factories: Map<string, Factory[]>;
 };
 
-type _DepsToArgs<Reg, Deps extends readonly (keyof Reg & string)[]> = _Mutable<{
+type DepsToArgs<Reg, Deps extends readonly (keyof Reg & string)[]> = Mutable<{
   [I in keyof Deps]: Reg[Deps[I]];
 }>;
 
-type _DerivedContainerDraft<
+type DerivedContainerDraft<
   Registry,
   IncomingTk extends string,
-  IncomingFactoryOut
-> = ContainerDraft<_AssignArray<Registry, IncomingTk, IncomingFactoryOut>>;
+  IncomingResult
+> = ContainerDraft<AssignArray<Registry, IncomingTk, IncomingResult>>;
 
-type _ElementType<T> = T extends readonly (infer U)[] ? U : T;
+type ElementType<T> = T extends readonly (infer U)[] ? U : T;
 
-type _EnforceSame<A, B> = [A] extends [B]
+type EnforceSame<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? A
     : never
   : never;
 
-type _Mutable<T extends readonly unknown[]> = [...T];
+type KeysOf<Reg> = keyof Reg & string;
 
-type _Reconcile<T> = { [K in keyof T]: T[K] } & {};
+type Mutable<T extends readonly unknown[]> = [...T];
 
-type _ResolveContext = {
-  path?: string[];
-  seen?: Set<string>;
-};
+type Reconcile<T> = { [K in keyof T]: T[K] } & {};
+
+type ResolveContext = { path: string[]; seen: Set<string> };
 
 export function startContainer(): ContainerDraft {
-  return _createContainerDraft(_createContainerState());
+  return createContainerDraft(createContainerState());
 }
 
-function _createContainerDraft(state: _ContainerState): ContainerDraft {
+function createContainerDraft(state: ContainerState): ContainerDraft {
   return { register, seal } as ContainerDraft;
 
   function register(tk: string, factory: Factory): ContainerDraft {
-    const newState = _createContainerState(state);
-
-    const existingEntries = newState.factories.get(tk);
-
-    const newEntry = [factory];
-
-    if (existingEntries) {
-      newState.factories.set(tk, existingEntries.concat(newEntry));
-
-      newState.cache.delete(tk);
+    const next = createContainerState(state);
+    const list = next.factories.get(tk);
+    if (list) {
+      next.factories.set(tk, list.concat(factory));
+      next.cache.delete(tk);
     } else {
-      newState.factories.set(tk, newEntry);
+      next.factories.set(tk, [factory]);
     }
-
-    return _createContainerDraft(newState);
+    return createContainerDraft(next);
   }
 
-  function seal() {
+  function seal(): Container {
     return { bind, resolve } as Container;
 
-    function bind(factory: Factory): Function {
+    function bind(factory: Factory): () => unknown {
       return () => {
-        const { dependsOn = [] } = factory;
-
-        return factory(...dependsOn.map(resolve));
+        const deps = factory.dependsOn ?? [];
+        return factory(...deps.map(resolve));
       };
     }
 
     function resolve(tk: string): unknown {
-      return _resolve(state, {}, tk);
+      return resolveInternal(state, { path: [], seen: new Set() }, tk);
     }
   }
 }
 
-function _createContainerState(prev?: _ContainerState): _ContainerState {
-  return {
-    cache: prev ? new Map(prev.cache) : new Map(),
-    factories: prev ? new Map(prev.factories) : new Map(),
-  };
+function createContainerState(prev?: ContainerState): ContainerState {
+  if (prev) {
+    return {
+      cache: new Map(prev.cache),
+      factories: new Map(prev.factories),
+    };
+  }
+  return { cache: new Map(), factories: new Map() };
 }
 
-function _resolve(
-  state: _ContainerState,
-  { path = [], seen = new Set() }: _ResolveContext,
+function resolveInternal(
+  state: ContainerState,
+  ctx: ResolveContext,
   tk: string
 ): unknown {
   if (state.cache.has(tk)) return state.cache.get(tk);
 
-  if (seen.has(tk)) {
-    const cyclePath = [...path.slice(path.indexOf(tk)), tk];
-
-    throw new Error(`cycle detected: ${cyclePath.join(" > ")}`);
+  if (ctx.seen.has(tk)) {
+    throw new Error(`cycle detected: ${ctx.path.concat([tk]).join(" > ")}`);
   }
 
-  const factory = state.factories.get(tk) as Factory[];
-
-  if (!factory || factory.length === 0) {
+  const list = state.factories.get(tk);
+  if (!list || list.length === 0) {
     throw new Error(`token is not registered: ${tk}`);
   }
 
-  seen.add(tk);
+  ctx.seen.add(tk);
+  ctx.path.push(tk);
 
-  path.push(tk);
-
-  const results = factory.map((factory) => {
-    const context = { path, seen };
-
-    const { dependsOn = [] } = factory;
-
-    const deps = dependsOn.map((tk) => _resolve(state, context, tk));
-
-    return factory.apply(undefined, deps);
+  const results = list.map((factory) => {
+    const deps = factory.dependsOn ?? [];
+    const args = deps.map((dep) => resolveInternal(state, ctx, dep));
+    return factory.apply(undefined, args);
   });
 
-  seen.delete(tk);
-
-  path.pop();
+  ctx.seen.delete(tk);
+  ctx.path.pop();
 
   const value = results.length === 1 ? results[0] : results;
-
   state.cache.set(tk, value);
-
   return value;
 }
