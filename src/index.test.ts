@@ -555,19 +555,19 @@ test("bind type-checking", () => {
 test("multi-bind: type-check of union of dependsOn", () => {
   x1.dependsOn = ["a", "b"] as const;
 
-  function x1(a: number) {
-    return a;
+  function x1(a: number, b: string): number {
+    return a + b.length;
   }
 
   x2.dependsOn = ["c"] as const;
 
-  function x2(b: string) {
-    return b.length;
+  function x2(c: boolean): number {
+    return c ? 1 : 0;
   }
 
   y.dependsOn = ["x"] as const;
 
-  function y(x: unknown[]) {
+  function y(x: number[]): number[] {
     return x;
   }
 
@@ -586,6 +586,6 @@ test("multi-bind: type-check of union of dependsOn", () => {
     b: string;
     c: boolean;
     x: number[];
-    y: unknown[];
+    y: number[];
   }>();
 });
