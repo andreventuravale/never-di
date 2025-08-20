@@ -1,52 +1,18 @@
 # never-di
 
-A lightweight, immutable, dependency-free, **function-only** dependency injection (DI) container for TypeScript.
-No decorators, no reflection, no classes — just plain functions with strong type safety.
+A lightweight, immutable, dependency-free, function-only dependency injection (DI) container for TypeScript.
+No decorators, no reflection, no classes - just plain functions with strong compile-time type safety.
 
 ---
 
-## Why
+## Key Aspects
 
-Most DI libraries are heavy, rely on decorators or reflection, and introduce runtime magic.  
-`never-di` was created to provide:
-
-- **Type-driven DI**: errors are caught at compile time, not runtime.  
-- **Function-only approach**: only factory functions.
-- **Minimal footprint**: no runtime bloat, no decorators, no metadata reflection.  
-- **Predictable runtime**: clear dependency resolution and cycle detection.
-
----
-
-## Goals
-
-- ✅ **Type safety**: dependencies must already exist in the container when declared.  
-- ✅ **Runtime safety**: detects cycles and missing tokens at runtime.  
-- ✅ **Multi-binding**: register the same token multiple times and resolve an array of values.  
-- ✅ **Clean IntelliSense**: no nested or noisy types — the registry evolves cleanly.  
-- ✅ **Lightweight**: designed to be easy to understand and use.  
-
----
-
-## Philosophy
-
-- **Functions are enough**: no need for classes or decorators.  
-- **Types should lead**: the compiler enforces dependency correctness.  
-- **Runtime clarity**: resolution is explicit, cycles are reported with clear paths.  
-- **Less is more**: the API is intentionally small and minimal.  
-
----
-
-## Comparison
-
-| Feature                   | never-di             | InversifyJS / tsyringe   |
-|----------------------------|--------------------|---------------------------|
-| Decorators required        | ❌ No              | ✅ Yes                    |
-| Reflection / metadata      | ❌ No              | ✅ Yes                    |
-| Class-based                | ❌ No              | ✅ Yes                    |
-| Type-checked dependencies  | ✅ Compile time    | ⚠️ Partial (runtime)      |
-| Multi-binding support      | ✅ Arrays          | ✅ Arrays                 |
-| Cycle detection            | ✅ Explicit error  | ⚠️ Often runtime only     |
-| Bundle size                | Tiny (<2 KB)      | Large                      |
+- **Immutability** – every register call produces a new container.
+- **Compile-time type safety** – dependencies must already exist in the container when declared; errors are caught before runtime.
+- **Multi-binding** – registering the same token multiple times resolves to an array of values.
+- **Lightweight** – minimal, clear, and easy to reason about.
+- **Dependency-free** – no runtime dependencies.
+- **Functional-only** – designed for factory functions; no classes, no decorators.
 
 ---
 
@@ -58,13 +24,11 @@ Most DI libraries are heavy, rely on decorators or reflection, and introduce run
 import { startContainer } from "never-di";
 
 foo.dependsOn = [] as const;
-
 function foo(): number {
   return 1;
 }
 
 bar.dependsOn = ["foo"] as const;
-
 function bar(foo: number): string {
   return `bar(${foo})`;
 }
@@ -74,7 +38,7 @@ const container = startContainer()
   .register("bar", bar)
   .seal();
 
-console.log(sealed.resolve("bar")); // "bar(1)"
+console.log(container.resolve("bar")); // "bar(1)"
 ```
 
 ### Multi-binding Example
@@ -83,13 +47,11 @@ console.log(sealed.resolve("bar")); // "bar(1)"
 import { startContainer } from "never-di";
 
 handler1.dependsOn = [] as const;
-
 function handler1(): string {
   return "h1";
 }
 
 handler2.dependsOn = [] as const;
-
 function handler2(): string {
   return "h2";
 }
@@ -101,17 +63,3 @@ const container = startContainer()
 
 console.log(container.resolve("handler")); // ["h1", "h2"]
 ```
-
-## Contributing
-
-never-di is intentionally minimal.
-
-- If you want **extra features** (e.g., class support, different resolver strategies), please **fork the library**.
-- This project will not support classes or reflection-based resolvers by design.
-
-You are welcome to:
-
-- Report issues.
-- Contribute **unit tests** to expand coverage and validate more scenarios.
-
-The goal is to keep the core **simple, type-safe, and function-only**.
