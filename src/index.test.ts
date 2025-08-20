@@ -578,7 +578,7 @@ test("readme example", () => {
   // @ts-expect-error
   const c2 = c1.register("value", s1);
 
-  // If forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
+  // ❌ Compile-time error: if forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
   // producing a type error when sealing.
   // @ts-expect-error
   console.log(c2.seal().resolve("value")); // [1, "oops"]

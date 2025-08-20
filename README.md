@@ -150,7 +150,7 @@ const c1 = startContainer().register("value", n1);
 // ❌ Compile-time error: cannot change multi-bind element type from number -> string
 const c2 = c1.register("value", s1);
 
-// If forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
+// ❌ Compile-time error: if forced with @ts-expect-error, runtime still succeeds, but the types collapse to never,
 // producing a type error when sealing.
 console.log(c2.seal().resolve("value")); // [1, "oops"]
 ```
