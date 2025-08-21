@@ -13,7 +13,7 @@ No decorators, no reflection, no classes - just plain functions with strong type
 - **Compile-time type safety**: dependency errors are caught at compile time, not runtime.
 - **Function-only**: only plain functions as factories - no classes, no decorators.
 - **Multi-binding**: register the same token multiple times and resolve an array of values.
-- **Singletons by design**: factories run once and values are cached. Inspired by how ESM modules are loaded only once per process.
+- **Singletons by design**: factories run once and values are cached.
 - **Lightweight**: small, simple, with no external dependencies.
 
 ---
