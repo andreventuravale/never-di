@@ -2,11 +2,11 @@ import type { RegistryOf } from ".";
 
 import { expect, expectTypeOf, test } from "vitest";
 
-import { startContainer } from ".";
+import { createContainerDraft } from ".";
 
 test("simplest use case", () => {
   expect(
-    startContainer()
+    createContainerDraft()
       .register("foo", () => "foo")
       .seal()
       .resolve("foo")
@@ -22,7 +22,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // control
   expect(
-    startContainer()
+    createContainerDraft()
       .register("foo", () => 1)
       .register("bar", () => 2)
       .register("baz", baz)
@@ -32,7 +32,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // missing foo and bar
   expect(
-    startContainer()
+    createContainerDraft()
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type 'never'
       .register("baz", baz)
       .register("foo", () => 1)
@@ -43,7 +43,7 @@ test("dependency tracking inherently determines the registration order", () => {
 
   // missing bar
   expect(
-    startContainer()
+    createContainerDraft()
       .register("foo", () => 1)
       // @ts-expect-error Type '"foo" | "bar"' is not assignable to type '"foo"'
       .register("baz", baz)
@@ -66,7 +66,7 @@ test("circular dependency is detected via seen set", () => {
     return `b(${a})`;
   }
 
-  const draft = startContainer()
+  const draft = createContainerDraft()
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
     .register("a", a)
     // @ts-expect-error Types of property 'dependsOn' are incompatible.
@@ -77,7 +77,7 @@ test("circular dependency is detected via seen set", () => {
 
 test("token does not exist", () => {
   expect(() =>
-    startContainer()
+    createContainerDraft()
       .seal()
       // @ts-expect-error Argument of type '"foo"' is not assignable to parameter of type 'never'
       .resolve("foo")
@@ -85,7 +85,7 @@ test("token does not exist", () => {
 });
 
 test("single-bind resolves to a single value", () => {
-  const draft = startContainer();
+  const draft = createContainerDraft();
 
   factory1.dependsOn = [] as const;
 
@@ -116,7 +116,7 @@ test("single-bind resolves to a single value", () => {
 });
 
 test("multi-bind resolves to an array of values", () => {
-  const draft = startContainer();
+  const draft = createContainerDraft();
 
   factory1.dependsOn = [] as const;
   function factory1(): number {
@@ -149,7 +149,7 @@ test("multi-bind resolves to an array of values", () => {
 });
 
 test("2nd+-bind resolves to an array of values", () => {
-  const draft = startContainer();
+  const draft = createContainerDraft();
 
   factory1.dependsOn = [] as const;
   function factory1(): number {
@@ -192,7 +192,7 @@ test("containers are immutable", () => {
     return foo + bar;
   }
 
-  const draft1 = startContainer().register("foo", () => 1);
+  const draft1 = createContainerDraft().register("foo", () => 1);
 
   const draft2 = draft1.register("bar", () => 2);
 
@@ -238,7 +238,7 @@ test("registering on a new container does not mutate the old one's factories", (
     return 2;
   }
 
-  const draft0 = startContainer();
+  const draft0 = createContainerDraft();
 
   const draft1 = draft0.register("x", f1);
 
@@ -260,7 +260,7 @@ test("single sealed container caches a token: multiple resolves do not re-execut
 
   expect(calls).toBe(0);
 
-  const container = startContainer().register("x", f).seal();
+  const container = createContainerDraft().register("x", f).seal();
 
   expect(container.resolve("x")).toBe("value");
 
@@ -280,9 +280,9 @@ test("cache is per container: each container runs its factory exactly once", () 
     return "value";
   }
 
-  const c1 = startContainer().register("x", x).seal();
+  const c1 = createContainerDraft().register("x", x).seal();
 
-  const c2 = startContainer().register("x", x).seal();
+  const c2 = createContainerDraft().register("x", x).seal();
 
   // First container: resolving multiple times should only execute once
   expect(calls).toBe(0);
@@ -335,7 +335,7 @@ test("re-registering a multi-bound token invalidates that token only and reruns 
     return "y";
   }
 
-  const d1 = startContainer()
+  const d1 = createContainerDraft()
     .register("x", x1)
     .register("x", x2)
     .register("y", y);
@@ -356,7 +356,7 @@ test("re-registering a multi-bound token invalidates that token only and reruns 
 
   // 'y' remains cached; 'x' recomputed (all x factories re-run in this container)
   expect(c2.resolve("y")).toBe("y");
-  expect(yCalls).toBe(1); // unchanged
+  expect(yCalls).toBe(2); // cache is per-container
   expect(c2.resolve("x")).toEqual([1, 2, 3]);
   expect(x1Calls).toBe(2); // x1 rerun in c2
   expect(x2Calls).toBe(2); // x2 rerun in c2
@@ -379,7 +379,7 @@ test("re-registering a token invalidates exactly that token's cached value", () 
   f2.dependsOn = [] as const;
 
   // 1) Build c1 and populate the cache for 'x'
-  const c1 = startContainer().register("x", f1);
+  const c1 = createContainerDraft().register("x", f1);
   const s1 = c1.seal();
 
   expect(s1.resolve("x")).toBe(1); // populates cache: f1 ran once
@@ -409,7 +409,7 @@ test("bind: happy path", () => {
     return foo;
   }
 
-  const bound = startContainer()
+  const bound = createContainerDraft()
     .register("foo", () => "foo")
     .seal()
     .bind(unbound);
@@ -422,7 +422,7 @@ test("bind: no deps", () => {
     return "foo";
   }
 
-  const bound = startContainer().seal().bind(unbound);
+  const bound = createContainerDraft().seal().bind(unbound);
 
   expect(bound()).toStrictEqual("foo");
 });
@@ -452,7 +452,7 @@ test("bind: scenario to be defined", () => {
     expect(bar.value).toBe(123);
   }
 
-  const container = startContainer()
+  const container = createContainerDraft()
     .register("bar", bar)
     .register("foo", foo)
     .seal();
@@ -469,7 +469,7 @@ test("bind: scenario to be defined", () => {
 });
 
 test("resolve throws for unregistered token at runtime", () => {
-  const sealed = startContainer().seal();
+  const sealed = createContainerDraft().seal();
 
   expect(() => (sealed as any).resolve("missing")).toThrow(
     `token is not registered: missing`
@@ -483,7 +483,7 @@ test("dependsOn missing token throws a clear error (not an undefined.map crash)"
     return missing;
   }
 
-  const sealed = startContainer()
+  const sealed = createContainerDraft()
     // @ts-expect-error Type 'readonly ["missing"]' is not assignable to type 'readonly never[]'.
     .register("bad", bad)
     .seal();
@@ -496,7 +496,7 @@ test("dependsOn missing token throws a clear error (not an undefined.map crash)"
 });
 
 test("bind type-checking", () => {
-  const c = startContainer()
+  const c = createContainerDraft()
     .register("a", () => 123)
     .register("b", (a: number) => `got ${a}`)
     .seal();
@@ -540,7 +540,7 @@ test("multi-bind: type-check of union of dependsOn", () => {
     return x;
   }
 
-  const c1 = startContainer()
+  const c1 = createContainerDraft()
     .register("a", () => 1)
     .register("b", () => "b")
     .register("x", x1)
@@ -568,7 +568,7 @@ test("readme example", () => {
     return "oops";
   }
 
-  const c1 = startContainer().register("value", n1);
+  const c1 = createContainerDraft().register("value", n1);
 
   // ❌ Compile-time error: cannot change multi-bind element type from number -> string
   // @ts-expect-error

@@ -50,7 +50,6 @@ type AssignArray<R, K extends string, V> = K extends keyof R
   : Reconcile<R & { [P in K]: V }>;
 
 type ContainerState = {
-  cache: Map<string, unknown>;
   factories: Map<string, Factory[]>;
 };
 
@@ -78,28 +77,33 @@ type Mutable<T extends readonly unknown[]> = [...T];
 
 type Reconcile<T> = { [K in keyof T]: T[K] } & {};
 
-type ResolveContext = { path: string[]; seen: Set<string> };
+type ResolveContext = {
+  cache: Map<string, unknown>;
+  path: string[];
+  seen: Set<string>;
+};
 
-export function startContainer(): ContainerDraft {
-  return createContainerDraft(createContainerState());
+export function createContainerDraft(): ContainerDraft {
+  return _createContainerDraft(_createContainerState());
 }
 
-function createContainerDraft(state: ContainerState): ContainerDraft {
+function _createContainerDraft(state: ContainerState): ContainerDraft {
   return { register, seal } as ContainerDraft;
 
   function register(tk: string, factory: Factory): ContainerDraft {
-    const next = createContainerState(state);
+    const next = _createContainerState(state);
     const list = next.factories.get(tk);
     if (list) {
       next.factories.set(tk, list.concat(factory));
-      next.cache.delete(tk);
     } else {
       next.factories.set(tk, [factory]);
     }
-    return createContainerDraft(next);
+    return _createContainerDraft(next);
   }
 
   function seal(): Container {
+    const cache = new Map<string, unknown>();
+
     return { bind, resolve } as Container;
 
     function bind(factory: Factory): () => unknown {
@@ -110,27 +114,26 @@ function createContainerDraft(state: ContainerState): ContainerDraft {
     }
 
     function resolve(tk: string): unknown {
-      return resolveInternal(state, { path: [], seen: new Set() }, tk);
+      return _resolveInternal(state, { cache, path: [], seen: new Set() }, tk);
     }
   }
 }
 
-function createContainerState(prev?: ContainerState): ContainerState {
+function _createContainerState(prev?: ContainerState): ContainerState {
   if (prev) {
     return {
-      cache: new Map(prev.cache),
       factories: new Map(prev.factories),
     };
   }
-  return { cache: new Map(), factories: new Map() };
+  return { factories: new Map() };
 }
 
-function resolveInternal(
+function _resolveInternal(
   state: ContainerState,
   ctx: ResolveContext,
   tk: string
 ): unknown {
-  if (state.cache.has(tk)) return state.cache.get(tk);
+  if (ctx.cache.has(tk)) return ctx.cache.get(tk);
 
   if (ctx.seen.has(tk)) {
     throw new Error(`cycle detected: ${ctx.path.concat([tk]).join(" > ")}`);
@@ -146,7 +149,7 @@ function resolveInternal(
 
   const results = list.map((factory) => {
     const deps = factory.dependsOn ?? [];
-    const args = deps.map((dep) => resolveInternal(state, ctx, dep));
+    const args = deps.map((dep) => _resolveInternal(state, ctx, dep));
     return factory.apply(undefined, args);
   });
 
@@ -154,6 +157,6 @@ function resolveInternal(
   ctx.path.pop();
 
   const value = results.length === 1 ? results[0] : results;
-  state.cache.set(tk, value);
+  ctx.cache.set(tk, value);
   return value;
 }

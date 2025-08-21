@@ -9,12 +9,14 @@ No decorators, no reflection, no classes - just plain functions with strong type
 
 `never-di` is intentionally minimal and built with these principles:
 
-- **Immutable**: containers are never mutated, each `.register` returns a new draft.
+- **Immutable**: container drafts are never mutated[^1]  - each call to `.register` produces a new draft.
 - **Compile-time type safety**: dependency errors are caught at compile time, not runtime.
 - **Function-only**: only plain functions as factories - no classes, no decorators.
-- **Multi-binding**: register the same token multiple times and resolve an array of values.
-- **Singletons by design**: factories run once and values are cached.
+- **Multi-binding**: register the same token multiple times and resolve an array of results.
+- **Singletons by design**: factories run once and results are cached.
 - **Lightweight**: small, simple, with no external dependencies.
+
+*[^1]: Immutability applies only to drafts. Once `seal()` is called, the resulting container is mutable in the sense that resolved values update its internal cache/state.*
 
 ---
 
@@ -24,13 +26,13 @@ Unlike many DI frameworks, `never-di` has **one scope only**: **singleton**.
 
 - **Singleton** (default and only scope)
   - Each token is resolved once per container.
-  - Factories run only on first resolution, then values are cached.
+  - Factories run only on first resolution, then results are cached.
   - Behavior is similar to ESM modules: loaded once, reused everywhere.
 
 ### Why only singletons?
 
-- This library is built around the semantics of ESM modules.  
-  It provides a way to decouple modules while preserving the same "load once and reuse" behavior.
+- This library was created out of the need to test ESM modules in parallel while keeping their dependencies decoupled.
+  It provides a way to separate modules while still preserving the familiar “load once and reuse” behavior.
 - Simplifies reasoning: no hidden object lifetimes, no surprise instantiations.
 - Ideal for **parallel testing**: immutable containers mean you can build fresh isolated containers per test.
 - Keeps runtime lean: no scope tracking, no context objects, no lifecycle hooks.
@@ -60,7 +62,7 @@ Unlike many DI frameworks, `never-di` has **one scope only**: **singleton**.
 ### Basics
 
 ```ts
-import { startContainer } from "never-di";
+import { createContainerDraft } from "never-di";
 
 function foo(): number {
   return 1;
@@ -72,7 +74,7 @@ function bar(foo: number): string {
   return `bar(${foo})`;
 }
 
-const container = startContainer()
+const container = createContainerDraft()
   .register("foo", foo)
   .register("bar", bar)
   .seal();
@@ -85,7 +87,7 @@ console.log(container.resolve("bar")); // "bar(1)"
 > From the second registration onward, the token’s type becomes an array of its original element type.
 
 ```ts
-import { startContainer } from "never-di";
+import { createContainerDraft } from "never-di";
 
 function handler1(): string {
   return "h1";
@@ -95,7 +97,7 @@ function handler2(): string {
   return "h2";
 }
 
-const container = startContainer()
+const container = createContainerDraft()
   .register("handler", handler1)
   .register("handler", handler2)
   .seal();
@@ -108,7 +110,7 @@ console.log(container.resolve("handler")); // ["h1", "h2"]
 > Returns a function of the same return type, with dependencies pre-bound from the container.
 
 ```ts
-import { startContainer } from "never-di";
+import { createContainerDraft } from "never-di";
 
 add.dependsOn = ["x", "y"] as const;
 
@@ -116,7 +118,7 @@ function add(x: number, y: number): number {
   return x + y;
 }
 
-const container = startContainer()
+const container = createContainerDraft()
   .register("x", () => 2)
   .register("y", () => 3)
   .seal();
@@ -131,7 +133,7 @@ console.log(addFn()); // 5
 > Registering a factory under an existing token with a different type breaks the fluent chain, forcing the user to correct the types.
 
 ```ts
-import { startContainer } from "never-di";
+import { createContainerDraft } from "never-di";
 
 function n1(): number {
   return 1;
@@ -141,7 +143,7 @@ function s1(): string {
   return "oops";
 }
 
-const c1 = startContainer().register("value", n1);
+const c1 = createContainerDraft().register("value", n1);
 
 // ❌ Compile-time error: cannot change multi-bind element type from number -> string
 const c2 = c1.register("value", s1);
