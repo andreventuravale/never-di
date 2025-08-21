@@ -1,6 +1,6 @@
 {
   "name": "never-di",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "A lightweight, immutable, dependency-free, function-only dependency injection (DI) container for TypeScript.",
   "type": "module",
   "main": "./src/index.ts",

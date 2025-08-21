@@ -3,8 +3,10 @@ import type {
   ContainerDraft,
   ContainerState,
   Factory,
-  ResolveContext
+  ResolveContext,
 } from "./types";
+
+export type { Container } from "./types";
 
 export function createContainerDraft(): ContainerDraft {
   return _createContainerDraft(_createContainerState());
