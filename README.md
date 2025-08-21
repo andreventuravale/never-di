@@ -154,9 +154,9 @@ console.log(c2.seal().resolve("value")); // [1, "oops"]
 
 ---
 
-## Contributing
+## Notes
 
-`never-di` is purposely minimal.
+**never-di** is purposely minimal.
 
 - Extra features (e.g., class support, custom scopes) are **out of scope** - fork if you need them.
 - Contributions are welcome for:
@@ -165,3 +165,6 @@ console.log(c2.seal().resolve("value")); // [1, "oops"]
   - Type improvements
 
 The goal is to keep the core **simple, type-safe, immutable, and function-only**.
+
+We’ve borrowed a few concepts from [typed-inject](https://github.com/nicojs/typed-inject) - it’s worth checking out.  
+Credit goes to them for ideas around type-checking, the fluent API, and their decorator-less approach using the `inject` static property.
