@@ -6,7 +6,7 @@ import type {
   ResolveContext,
 } from "./types";
 
-export type { Container } from "./types";
+export type { Container, ContainerDraft } from "./types";
 
 export function createContainerDraft(): ContainerDraft {
   return _createContainerDraft(_createContainerState());
