@@ -1,84 +1,51 @@
-export interface Container<Registry = {}> {
-  bind<
-    Result,
-    Deps extends readonly KeysOf<Registry>[],
-    Args extends DepsToArgs<Registry, Deps>
-  >(
-    factory: Factory<Result, Args, Deps>
-  ): (this: void) => Result;
-
-  resolve<Tk extends keyof Registry>(token: Tk): Registry[Tk];
-}
-
-export interface ContainerDraft<Registry = {}> {
-  register<
-    Tk extends string,
-    Result,
-    Args extends unknown[] = unknown[],
-    Deps extends readonly Extract<keyof Registry, string>[] = []
-  >(
-    tk: Tk,
-    factory: Factory<
-      Tk extends keyof Registry
-        ? EnforceSame<Result, ElementType<Registry[Tk]>>
-        : Result,
-      Args,
-      Deps
-    >
-  ): Tk extends keyof Registry
-    ? [Result] extends [ElementType<Registry[Tk]>]
-      ? DerivedContainerDraft<Registry, Tk, Result>
-      : never
-    : DerivedContainerDraft<Registry, Tk, Result>;
-
-  seal(): Container<Registry>;
-}
-
-export type ContainerState = {
-  factories: Map<string, Factory[]>;
-};
+// ---- Minimal types with single binding + separate multi binding ----
 
 export interface Factory<
   Result = unknown,
-  Args extends unknown[] = unknown[],
+  Args extends readonly unknown[] = readonly unknown[],
   Deps extends readonly string[] = readonly []
 > {
   readonly dependsOn?: Deps;
   (this: void, ...args: Args): Result;
 }
 
-export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
-
-export type ResolveContext = {
-  cache: Map<string, unknown>;
-  path: string[];
-  seen: Set<string>;
+type Keys<R> = Extract<keyof R, string>;
+type Extend<R, K extends string, V> = R & { [P in K]: V };
+type ArgsFor<Reg, Deps extends readonly Keys<Reg>[]> = {
+  [I in keyof Deps]: Reg[Deps[I]];
 };
 
-type AssignArray<R, K extends string, V> = K extends keyof R
-  ? Reconcile<Omit<R, K> & { [P in K]: EnforceSame<ElementType<R[K]>, V>[] }>
-  : Reconcile<R & { [P in K]: V }>;
+export interface ContainerDraft<Reg = {}> {
+  // Single binding: token -> T
+  register<
+    Tk extends string,
+    Result,
+    Deps extends readonly Keys<Reg>[]
+  >(
+    tk: Tk,
+    factory: Factory<Result, any[], Deps>
+  ): ContainerDraft<Extend<Reg, Tk, Result>>;
 
-type DepsToArgs<Reg, Deps extends readonly (keyof Reg & string)[]> = Mutable<{
-  [I in keyof Deps]: Reg[Deps[I]];
-}>;
+  // Multi binding: token -> T[]
+  registerMany<
+    Tk extends string,
+    Result,
+    Deps extends readonly Keys<Reg>[]
+  >(
+    tk: Tk,
+    factories: readonly Factory<Result, any[], Deps>[]
+  ): ContainerDraft<Extend<Reg, Tk, Result[]>>;
 
-type DerivedContainerDraft<
-  Registry,
-  IncomingTk extends string,
-  IncomingResult
-> = ContainerDraft<AssignArray<Registry, IncomingTk, IncomingResult>>;
+  seal(): Container<Reg>;
+}
 
-type ElementType<T> = T extends readonly (infer U)[] ? U : T;
+export interface Container<Reg = {}> {
+  bind<
+    Result,
+    Deps extends readonly Keys<Reg>[]
+  >(factory: Factory<Result, ArgsFor<Reg, Deps>, Deps>): () => Result;
 
-type EnforceSame<A, B> = [A] extends [B]
-  ? [B] extends [A]
-    ? A
-    : never
-  : never;
+  resolve<Tk extends Keys<Reg>>(token: Tk): Reg[Tk];
+}
 
-type KeysOf<Reg> = keyof Reg & string;
-
-type Mutable<T extends readonly unknown[]> = [...T];
-
-type Reconcile<T> = { [K in keyof T]: T[K] } & {};
+export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
