@@ -1,4 +1,4 @@
-import type { RegistryOf } from ".";
+import type { RegistryOf } from "./types";
 
 import { expect, expectTypeOf, test } from "vitest";
 
