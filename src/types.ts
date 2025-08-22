@@ -4,23 +4,28 @@ type Extend<R, K extends string, V> = R & { [P in K]: V };
 
 // Phantom metadata carrier via unique symbol (type-only, erased at runtime)
 declare const __meta__: unique symbol;
-type __Meta<F, D extends readonly string[]> = { readonly [__meta__]?: readonly [F, D] };
+type __Meta<F, D extends readonly string[]> = {
+  readonly [__meta__]?: readonly [F, D];
+};
 
 type WithMeta<V, F, D extends readonly string[]> = V & __Meta<F, D>;
 type StripMeta<T> = T extends infer V & __Meta<any, any> ? V : T;
 
-// Tuple helpers (non-recursive, constant in complexity)
-type First<T extends readonly unknown[]> = T extends readonly [infer H, ...any] ? H : never;
-
 // Works for your callable `Factory` without conditional over parameters
 type ResultOf<F> = F extends { (...a: any): infer R } ? R : never;
 type DepsOf<F> = F extends { readonly dependsOn?: infer D }
-  ? D extends readonly string[] ? D : readonly []
+  ? D extends readonly string[]
+    ? D
+    : readonly []
   : readonly [];
 
 // Union deps across an array (union shape is O(1) to form)
 type UnionDepElems<Fs extends readonly unknown[]> = DepsOf<Fs[number]>[number];
 type UnionDeps<Fs extends readonly unknown[]> = readonly UnionDepElems<Fs>[];
+
+type ArgsFor<Reg, Deps extends readonly Keys<Reg>[]> = {
+  [I in keyof Deps]: StripMeta<Reg[Deps[I]]>;
+};
 
 // ---------- your core types ----------
 export interface Factory<
@@ -32,17 +37,9 @@ export interface Factory<
   (this: void, ...args: Args): Result;
 }
 
-type ArgsFor<Reg, Deps extends readonly Keys<Reg>[]> = {
-  [I in keyof Deps]: StripMeta<Reg[Deps[I]]>;
-};
-
 export interface ContainerDraft<Reg = {}> {
   // Single binding: token -> T (store meta, visible type remains T)
-  register<
-    Tk extends string,
-    Result,
-    Deps extends readonly Keys<Reg>[]
-  >(
+  register<Tk extends string, Result, Deps extends readonly Keys<Reg>[]>(
     tk: Tk,
     factory: Factory<Result, any[], Deps>
   ): ContainerDraft<Extend<Reg, Tk, WithMeta<Result, typeof factory, Deps>>>;
@@ -62,9 +59,9 @@ export interface ContainerDraft<Reg = {}> {
       Reg,
       Tk,
       WithMeta<
-        ResultOf<F1>[],                // value = array of results
-        F1,                            // factory type of the first element
-        UnionDeps<[F1, ...Rest]>       // union of all dependsOn
+        ResultOf<F1>[], // value = array of results
+        F1, // factory type of the first element
+        UnionDeps<[F1, ...Rest]> // union of all dependsOn
       >
     >
   >;
@@ -73,10 +70,9 @@ export interface ContainerDraft<Reg = {}> {
 }
 
 export interface Container<Reg = {}> {
-  bind<
-    Result,
-    Deps extends readonly Keys<Reg>[]
-  >(factory: Factory<Result, ArgsFor<Reg, Deps>, Deps>): () => Result;
+  bind<Result, Deps extends readonly Keys<Reg>[]>(
+    factory: Factory<Result, ArgsFor<Reg, Deps>, Deps>
+  ): () => Result;
 
   resolve<Tk extends Keys<Reg>>(token: Tk): StripMeta<Reg[Tk]>;
 }
@@ -84,8 +80,16 @@ export interface Container<Reg = {}> {
 export type RegistryOf<C> = C extends ContainerDraft<infer R> ? R : never;
 
 // (Optional) introspection helpers, also O(1):
-export type FactoryOf<Reg, Tk extends Keys<Reg>> =
-  Reg[Tk] extends __Meta<infer F, any> ? F : never;
+export type FactoryOf<Reg, Tk extends Keys<Reg>> = Reg[Tk] extends __Meta<
+  infer F,
+  any
+>
+  ? F
+  : never;
 
-export type DependsOf<Reg, Tk extends Keys<Reg>> =
-  Reg[Tk] extends __Meta<any, infer D> ? D : readonly never[];
+export type DependsOf<Reg, Tk extends Keys<Reg>> = Reg[Tk] extends __Meta<
+  any,
+  infer D
+>
+  ? D
+  : readonly never[];
