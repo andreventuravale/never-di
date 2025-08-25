@@ -101,77 +101,77 @@ test.only("resolve caches same instance", () => {
 });
 
 // 10) eager dependency is passed as value
-test("eager dependency is passed as value", () => {
-  B6.mode = "eager" as const;
-  function B6() {
+test.only("eager dependency is passed as value", () => {
+  Foo.mode = "eager" as const;
+  function Foo() {
     return { kind: "B" as const };
   }
 
-  A6.dependsOn = ["B6"] as const;
-  A6.mode = "eager" as const;
-  function A6(b: { kind: "B" }) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(b: { kind: "B" }) {
     return b;
   }
 
   const c = startContainer()
-    .define(A6)
-    .define(B6)
-    .assign("IB6", B6)
-    .assign("IA6", A6)
+    .define(Bar)
+    .define(Foo)
+    .assign("IFoo", Foo)
+    .assign("IBar", Bar)
     .seal();
 
-  expect(c.resolve("IA6")).toEqual({ kind: "B" });
+  expect(c.resolve("IBar")).toEqual({ kind: "B" });
 });
 
 // 11) lazy dependency is passed as thunk
-test("lazy dependency is passed as thunk", () => {
-  B7.mode = "lazy" as const;
-  function B7() {
+test.only("lazy dependency is passed as thunk", () => {
+  Foo.mode = "lazy" as const;
+  function Foo() {
     return { kind: "B" as const };
   }
 
   let seenType = "";
-  A7.dependsOn = ["B7"] as const;
-  A7.mode = "eager" as const;
-  function A7(bThunk: () => { kind: "B" }) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(bThunk: () => { kind: "B" }) {
     seenType = typeof bThunk;
     return { kind: "A" as const };
   }
 
   const c = startContainer()
-    .define(A7)
-    .define(B7)
-    .assign("IA7", A7)
-    .assign("IB7", B7)
+    .define(Bar)
+    .define(Foo)
+    .assign("IBar", Bar)
+    .assign("IFoo", Foo)
     .seal();
 
-  c.resolve("IA7");
+  c.resolve("IBar");
   expect(seenType).toBe("function");
 });
 
 // 12) lazy thunk returns the same cached instance
 test("lazy thunk returns the same cached instance", () => {
-  B8.mode = "lazy" as const;
-  function B8() {
+  Foo.mode = "lazy" as const;
+  function Foo() {
     return {};
   }
 
   let captured!: () => object;
-  A8.dependsOn = ["B8"] as const;
-  A8.mode = "eager" as const;
-  function A8(bThunk: () => object) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(bThunk: () => object) {
     captured = bThunk;
     return {};
   }
 
   const c = startContainer()
-    .define(A8)
-    .define(B8)
-    .assign("IA8", A8)
-    .assign("IB8", B8)
+    .define(Bar)
+    .define(Foo)
+    .assign("IBar", Bar)
+    .assign("IFoo", Foo)
     .seal();
 
-  c.resolve("IA8");
+  c.resolve("IBar");
   const b1 = captured();
   const b2 = captured();
   expect(b1).toBe(b2);
@@ -179,117 +179,117 @@ test("lazy thunk returns the same cached instance", () => {
 
 // 13) eager–eager cycle throws on resolve
 test("eager-eager direct cycle throws on resolve", () => {
-  Foo9.dependsOn = ["Bar9"] as const;
-  Foo9.mode = "eager" as const;
-  function Foo9(bar: { k: "Bar" }) {
+  Foo.dependsOn = ["Bar"] as const;
+  Foo.mode = "eager" as const;
+  function Foo(bar: { k: "Bar" }) {
     return { k: "Foo" as const };
   }
 
-  Bar9.dependsOn = ["Foo9"] as const;
-  Bar9.mode = "eager" as const;
-  function Bar9(foo: { k: "Foo" }) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(foo: { k: "Foo" }) {
     return { k: "Bar" as const };
   }
 
   const c = startContainer()
-    .define(Foo9)
-    .define(Bar9)
-    .assign("IFoo9", Foo9)
-    .assign("IBar9", Bar9)
+    .define(Foo)
+    .define(Bar)
+    .assign("IFoo", Foo)
+    .assign("IBar", Bar)
     .seal();
 
-  expect(() => c.resolve("IFoo9")).toThrow(/cyclic dependency/i);
+  expect(() => c.resolve("IFoo")).toThrow(/cyclic dependency/i);
 });
 
 // 14) lazy breaks direct cycle when thunk used after caching
 test("lazy breaks direct cycle when thunk used after caching", () => {
   type FooT = { kind: "Foo"; getBar: () => { kind: "Bar" } };
 
-  Bar10.dependsOn = ["Foo10"] as const;
-  Bar10.mode = "lazy" as const;
-  function Bar10(_foo: FooT) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "lazy" as const;
+  function Bar(_foo: FooT) {
     return { kind: "Bar" as const };
   }
 
   let barThunk!: () => { kind: "Bar" };
-  Foo10.dependsOn = ["Bar10"] as const;
-  Foo10.mode = "eager" as const;
-  function Foo10(bThunk: () => { kind: "Bar" }) {
+  Foo.dependsOn = ["Bar"] as const;
+  Foo.mode = "eager" as const;
+  function Foo(bThunk: () => { kind: "Bar" }) {
     barThunk = bThunk; // do not call yet
     return { kind: "Foo", getBar: () => bThunk() };
   }
 
   const c = startContainer()
-    .define(Foo10)
-    .define(Bar10)
-    .assign("IFoo10", Foo10) // allowed: Bar10 is lazy
-    .assign("IBar10", Bar10)
+    .define(Foo)
+    .define(Bar)
+    .assign("IFoo", Foo) // allowed: Bar is lazy
+    .assign("IBar", Bar)
     .seal();
 
-  const foo = c.resolve("IFoo10");
+  const foo = c.resolve("IFoo");
   const bar = foo.getBar();
   expect(bar).toEqual({ kind: "Bar" });
 });
 
 // 15) calling lazy thunk before provider is assigned throws
 test("calling lazy thunk before provider is assigned throws", () => {
-  Bar11.mode = "lazy" as const;
-  function Bar11() {
+  Bar.mode = "lazy" as const;
+  function Bar() {
     return {};
   }
 
   let captured!: () => unknown;
-  Foo11.dependsOn = ["Bar11"] as const;
-  Foo11.mode = "eager" as const;
-  function Foo11(bThunk: () => unknown) {
+  Foo.dependsOn = ["Bar"] as const;
+  Foo.mode = "eager" as const;
+  function Foo(bThunk: () => unknown) {
     captured = bThunk;
     return {};
   }
 
   const phase = startContainer()
-    .define(Foo11)
-    .define(Bar11)
-    .assign("IFoo11", Foo11); // Bar11 not assigned yet
+    .define(Foo)
+    .define(Bar)
+    .assign("IFoo", Foo); // Bar not assigned yet
 
   const c = phase.seal();
-  c.resolve("IFoo11");
-  expect(() => captured()).toThrow(/unassigned token "Bar11"/i);
+  c.resolve("IFoo");
+  expect(() => captured()).toThrow(/unassigned token "Bar"/i);
 });
 
 // 16) assign fails when dep is not assigned and not lazy
 test("assign fails when dep not assigned and not lazy", () => {
-  A12.dependsOn = ["B12"] as const;
-  A12.mode = "eager" as const;
-  function A12() {
+  Foo.dependsOn = ["Bar"] as const;
+  Foo.mode = "eager" as const;
+  function Foo() {
     return "A";
   }
 
-  B12.mode = "eager" as const;
-  function B12() {
+  Bar.mode = "eager" as const;
+  function Bar() {
     return "B";
   }
 
-  const d = startContainer().define(A12).define(B12);
-  expect(() => d.assign("IA12", A12)).toThrow(
-    /dependency "B12".*neither assigned nor defined as lazy/i
+  const d = startContainer().define(Foo).define(Bar);
+  expect(() => d.assign("IFoo", Foo)).toThrow(
+    /dependency "Bar".*neither assigned nor defined as lazy/i
   );
 });
 
 // 17) assign succeeds when dependency provider is defined as lazy
 test("assign succeeds when dep provider is lazy-defined", () => {
-  A13.dependsOn = ["B13"] as const;
-  A13.mode = "eager" as const;
-  function A13() {
+  Foo.dependsOn = ["Bar"] as const;
+  Foo.mode = "eager" as const;
+  function Foo() {
     return "A";
   }
 
-  B13.mode = "lazy" as const;
-  function B13() {
+  Bar.mode = "lazy" as const;
+  function Bar() {
     return "B";
   }
 
-  const d = startContainer().define(A13).define(B13);
-  expect(() => d.assign("IA13", A13)).not.toThrow();
+  const d = startContainer().define(Foo).define(Bar);
+  expect(() => d.assign("IFoo", Foo)).not.toThrow();
 });
 
 // 18) mapping by factory name works with different external tokens
@@ -317,62 +317,62 @@ test("dependsOn by factory name works regardless of external tokens", () => {
 
 // 19) bind returns a callable that produces a value
 test("bind returns a callable that produces a value", () => {
-  A14.mode = "eager" as const;
-  function A14() {
+  Foo.mode = "eager" as const;
+  function Foo() {
     return 41;
   }
 
-  const c = startContainer().define(A14).assign("IA14", A14).seal();
+  const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
 
-  PlusOne.dependsOn = ["A14"] as const;
-  PlusOne.mode = "eager" as const;
-  function PlusOne(a: number) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(a: number) {
     return a + 1;
   }
 
-  const fn = c.bind(PlusOne);
+  const fn = c.bind(Bar);
   expect(fn()).toBe(42);
 });
 
 // 20) bind wires eager deps as values
 test("bind wires eager deps as values", () => {
-  A15.mode = "eager" as const;
-  function A15() {
+  Foo.mode = "eager" as const;
+  function Foo() {
     return 2;
   }
 
-  const c = startContainer().define(A15).assign("IA15", A15).seal();
+  const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
 
   let seen: number | undefined;
-  UseA.dependsOn = ["A15"] as const;
-  UseA.mode = "eager" as const;
-  function UseA(a: number) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(a: number) {
     seen = a;
     return 0;
   }
 
-  c.bind(UseA)();
+  c.bind(Bar)();
   expect(seen).toBe(2);
 });
 
 // 21) bind wires lazy deps as thunks
 test("bind wires lazy deps as thunks", () => {
-  A16.mode = "lazy" as const;
-  function A16() {
+  Foo.mode = "lazy" as const;
+  function Foo() {
     return 5;
   }
 
-  const c = startContainer().define(A16).assign("IA16", A16).seal();
+  const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
 
   let argType = "";
-  UseALazy.dependsOn = ["A16"] as const;
-  UseALazy.mode = "eager" as const;
-  function UseALazy(aThunk: () => number) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(aThunk: () => number) {
     argType = typeof aThunk;
     return 0;
   }
 
-  c.bind(UseALazy)();
+  c.bind(Bar)();
   expect(argType).toBe("function");
 });
 
@@ -386,25 +386,25 @@ test("resolve error mentions token name", () => {
 
 // 23) dependency instance equals direct resolve (singleton propagation)
 test("dependency instance equals direct resolve", () => {
-  B17.mode = "eager" as const;
-  function B17() {
+  Foo.mode = "eager" as const;
+  function Foo() {
     return {};
   }
 
-  A17.dependsOn = ["B17"] as const;
-  A17.mode = "eager" as const;
-  function A17(b: object) {
+  Bar.dependsOn = ["Foo"] as const;
+  Bar.mode = "eager" as const;
+  function Bar(b: object) {
     return b;
   }
 
   const c = startContainer()
-    .define(A17)
-    .define(B17)
-    .assign("IB17", B17)
-    .assign("IA17", A17)
+    .define(Bar)
+    .define(Foo)
+    .assign("IFoo", Foo)
+    .assign("IBar", Bar)
     .seal();
 
-  const bDirect = c.resolve("IB17");
-  const bViaA = c.resolve("IA17");
+  const bDirect = c.resolve("IFoo");
+  const bViaA = c.resolve("IBar");
   expect(bViaA).toBe(bDirect);
 });
