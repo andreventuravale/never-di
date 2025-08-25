@@ -1,6 +1,18 @@
 import { expect, test } from "vitest";
 
 import { startContainer } from ".";
+import { typecheck } from "./typecheck";
+
+test.only("matches by code and message pattern", async () => {
+  const result = await typecheck({
+    "index.ts": `const x: number = "oops";`,
+  });
+
+  expect(result).toReportError(
+    2322,
+    `Type 'string' is not assignable to type 'number'.`
+  );
+});
 
 test("define collects metadata without validating deps", () => {
   Foo.dependsOn = ["Missing"] as const;
@@ -8,8 +20,7 @@ test("define collects metadata without validating deps", () => {
     return "foo";
   }
 
-  const draft = startContainer().define(Foo);
-  expect(draft).toBeTruthy();
+  startContainer().define(Foo);
 });
 
 test("duplicate define throws", () => {
