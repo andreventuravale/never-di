@@ -1,89 +1,117 @@
 // di.two-phase.flat.test.ts
-import { test, expect } from "vitest";
+import { expect, test } from "vitest";
 import { startContainer } from "."; // ← adjust
 
 // 1) define collects metadata without validating deps
 test.only("define collects metadata without validating deps", () => {
   Foo.dependsOn = ["Missing"] as const; // allowed: define phase doesn't validate
   Foo.mode = "eager" as const;
-  function Foo() { return "foo"; }
+  function Foo() {
+    return "foo";
+  }
 
-  const builder = startContainer().define(Foo);
-  expect(builder).toBeTruthy();
+  const draft = startContainer().define(Foo);
+  expect(draft).toBeTruthy();
 });
 
 // 2) duplicate define (same function) throws
 test.only("duplicate define throws", () => {
   A.mode = "eager" as const;
-  function A() { return 1; }
+  function A() {
+    return 1;
+  }
 
-  const b = startContainer().define(A);
-  expect(() => b.define(A)).toThrow(/already defined/i);
+  const draft = startContainer().define(A);
+  expect(() => draft.define(A)).toThrow('Factory "A" already defined.');
 });
 
 // 4) assign of a factory that was never defined throws
 test.only("assigning an undefined factory throws", () => {
   Undef.mode = "eager" as const;
-  function Undef() { return 0; }
+  function Undef() {
+    return 0;
+  }
 
-  const b = startContainer();
-  expect(() => b.assign("IUndef", Undef)).toThrow(/was not defined/i);
+  const draft = startContainer();
+  expect(() => draft.assign("IUndef", Undef)).toThrow(
+    'Factory "Undef" was not defined.'
+  );
 });
 
 // 5) reassigning the same token throws
 test.only("reassigning same token throws", () => {
-  A2.mode = "eager" as const;
-  function A2() { return 1; }
+  Foo.mode = "eager" as const;
+  function Foo() {
+    return 1;
+  }
 
-  const p = startContainer().define(A2).assign("IA2", A2);
-  expect(() => p.assign("IA2", A2)).toThrow(/already assigned/i);
+  const draft = startContainer().define(Foo).assign("IFoo", Foo);
+  expect(() => draft.assign("IFoo", Foo)).toThrow(
+    'Token "IFoo" is already assigned.'
+  );
 });
 
 // 6) the same factory cannot be assigned twice under different tokens
 test.only("same factory cannot be assigned twice", () => {
-  A3.mode = "eager" as const;
-  function A3() { return 1; }
+  Foo.mode = "eager" as const;
+  function Foo() {
+    return 1;
+  }
 
-  const p = startContainer().define(A3).assign("IA3", A3);
-  expect(() => p.assign("IA3B", A3)).toThrow(/already assigned to token/i);
+  const draft = startContainer().define(Foo).assign("IFoo", Foo);
+  expect(() => draft.assign("IBar", Foo)).toThrow(
+    'Factory "Foo" is already assigned to token "IFoo".'
+  );
 });
 
 // 7) assign with no deps and resolve
 test.only("assign with no deps resolves value", () => {
-  A4.mode = "eager" as const;
-  function A4() { return 7; }
+  Foo.mode = "eager" as const;
+  function Foo() {
+    return 7;
+  }
 
-  const c = startContainer().define(A4).assign("IA4", A4).seal();
-  expect(c.resolve("IA4")).toBe(7);
+  const container = startContainer().define(Foo).assign("IFoo", Foo).seal();
+  expect(container.resolve("IFoo")).toBe(7);
 });
 
 // 8) resolve on unassigned token throws
 test.only("resolve on unassigned token throws", () => {
-  A4.mode = "eager" as const;
-  function A4() { return 7; }
-  const c = startContainer().define(A4).assign("A4", A4).seal();
-  expect(() => c.resolve("Nope" as unknown as never)).toThrow(/unassigned token "Nope"/i);
+  Foo.mode = "eager" as const;
+  function Foo() {
+    return 7;
+  }
+  const container = startContainer().define(Foo).assign("Foo", Foo).seal();
+  expect(() => container.resolve("Nope" as unknown as never)).toThrow(
+    'Cannot resolve unassigned token "Nope".'
+  );
 });
 
 // 9) singleton: resolve caches same instance
 test.only("resolve caches same instance", () => {
-  A5.mode = "eager" as const;
-  function A5() { return {}; }
+  Foo.mode = "eager" as const;
+  function Foo() {
+    return {};
+  }
 
-  const c = startContainer().define(A5).assign("IA5", A5).seal();
-  const x = c.resolve("IA5");
-  const y = c.resolve("IA5");
-  expect(x).toBe(y);
+  const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
+  const x = c.resolve("IFoo");
+  const y = c.resolve("IFoo");
+  expect(Object.is(x, y)).toBeTruthy();
 });
 
 // 10) eager dependency is passed as value
-test.only("eager dependency is passed as value", () => {
+test("eager dependency is passed as value", () => {
   B6.mode = "eager" as const;
-  function B6() { return { kind: "B" as const }; }
+  function B6() {
+    return { kind: "B" as const };
+  }
 
   A6.dependsOn = ["B6"] as const;
   A6.mode = "eager" as const;
-  function A6(b: { kind: "B" }) { return b; }
+  function A6(b: { kind: "B" }) {
+    return b;
+  }
 
   const c = startContainer()
     .define(A6)
@@ -96,9 +124,11 @@ test.only("eager dependency is passed as value", () => {
 });
 
 // 11) lazy dependency is passed as thunk
-test.only("lazy dependency is passed as thunk", () => {
+test("lazy dependency is passed as thunk", () => {
   B7.mode = "lazy" as const;
-  function B7() { return { kind: "B" as const }; }
+  function B7() {
+    return { kind: "B" as const };
+  }
 
   let seenType = "";
   A7.dependsOn = ["B7"] as const;
@@ -120,9 +150,11 @@ test.only("lazy dependency is passed as thunk", () => {
 });
 
 // 12) lazy thunk returns the same cached instance
-test.only("lazy thunk returns the same cached instance", () => {
+test("lazy thunk returns the same cached instance", () => {
   B8.mode = "lazy" as const;
-  function B8() { return {}; }
+  function B8() {
+    return {};
+  }
 
   let captured!: () => object;
   A8.dependsOn = ["B8"] as const;
@@ -149,11 +181,15 @@ test.only("lazy thunk returns the same cached instance", () => {
 test("eager-eager direct cycle throws on resolve", () => {
   Foo9.dependsOn = ["Bar9"] as const;
   Foo9.mode = "eager" as const;
-  function Foo9(bar: { k: "Bar" }) { return { k: "Foo" as const }; }
+  function Foo9(bar: { k: "Bar" }) {
+    return { k: "Foo" as const };
+  }
 
   Bar9.dependsOn = ["Foo9"] as const;
   Bar9.mode = "eager" as const;
-  function Bar9(foo: { k: "Foo" }) { return { k: "Bar" as const }; }
+  function Bar9(foo: { k: "Foo" }) {
+    return { k: "Bar" as const };
+  }
 
   const c = startContainer()
     .define(Foo9)
@@ -166,12 +202,14 @@ test("eager-eager direct cycle throws on resolve", () => {
 });
 
 // 14) lazy breaks direct cycle when thunk used after caching
-test.only("lazy breaks direct cycle when thunk used after caching", () => {
+test("lazy breaks direct cycle when thunk used after caching", () => {
   type FooT = { kind: "Foo"; getBar: () => { kind: "Bar" } };
 
   Bar10.dependsOn = ["Foo10"] as const;
   Bar10.mode = "lazy" as const;
-  function Bar10(_foo: FooT) { return { kind: "Bar" as const }; }
+  function Bar10(_foo: FooT) {
+    return { kind: "Bar" as const };
+  }
 
   let barThunk!: () => { kind: "Bar" };
   Foo10.dependsOn = ["Bar10"] as const;
@@ -196,7 +234,9 @@ test.only("lazy breaks direct cycle when thunk used after caching", () => {
 // 15) calling lazy thunk before provider is assigned throws
 test("calling lazy thunk before provider is assigned throws", () => {
   Bar11.mode = "lazy" as const;
-  function Bar11() { return {}; }
+  function Bar11() {
+    return {};
+  }
 
   let captured!: () => unknown;
   Foo11.dependsOn = ["Bar11"] as const;
@@ -217,39 +257,53 @@ test("calling lazy thunk before provider is assigned throws", () => {
 });
 
 // 16) assign fails when dep is not assigned and not lazy
-test.only("assign fails when dep not assigned and not lazy", () => {
+test("assign fails when dep not assigned and not lazy", () => {
   A12.dependsOn = ["B12"] as const;
   A12.mode = "eager" as const;
-  function A12() { return "A"; }
+  function A12() {
+    return "A";
+  }
 
   B12.mode = "eager" as const;
-  function B12() { return "B"; }
+  function B12() {
+    return "B";
+  }
 
   const d = startContainer().define(A12).define(B12);
-  expect(() => d.assign("IA12", A12)).toThrow(/dependency "B12".*neither assigned nor defined as lazy/i);
+  expect(() => d.assign("IA12", A12)).toThrow(
+    /dependency "B12".*neither assigned nor defined as lazy/i
+  );
 });
 
 // 17) assign succeeds when dependency provider is defined as lazy
-test.only("assign succeeds when dep provider is lazy-defined", () => {
+test("assign succeeds when dep provider is lazy-defined", () => {
   A13.dependsOn = ["B13"] as const;
   A13.mode = "eager" as const;
-  function A13() { return "A"; }
+  function A13() {
+    return "A";
+  }
 
   B13.mode = "lazy" as const;
-  function B13() { return "B"; }
+  function B13() {
+    return "B";
+  }
 
   const d = startContainer().define(A13).define(B13);
   expect(() => d.assign("IA13", A13)).not.toThrow();
 });
 
 // 18) mapping by factory name works with different external tokens
-test.only("dependsOn by factory name works regardless of external tokens", () => {
+test("dependsOn by factory name works regardless of external tokens", () => {
   Provider.mode = "eager" as const;
-  function Provider() { return 42; }
+  function Provider() {
+    return 42;
+  }
 
   Consumer.dependsOn = ["Provider"] as const; // by factory name
   Consumer.mode = "eager" as const;
-  function Consumer(x: number) { return x + 1; }
+  function Consumer(x: number) {
+    return x + 1;
+  }
 
   const c = startContainer()
     .define(Provider)
@@ -262,47 +316,61 @@ test.only("dependsOn by factory name works regardless of external tokens", () =>
 });
 
 // 19) bind returns a callable that produces a value
-test.only("bind returns a callable that produces a value", () => {
+test("bind returns a callable that produces a value", () => {
   A14.mode = "eager" as const;
-  function A14() { return 41; }
+  function A14() {
+    return 41;
+  }
 
   const c = startContainer().define(A14).assign("IA14", A14).seal();
 
   PlusOne.dependsOn = ["A14"] as const;
   PlusOne.mode = "eager" as const;
-  function PlusOne(a: number) { return a + 1; }
+  function PlusOne(a: number) {
+    return a + 1;
+  }
 
   const fn = c.bind(PlusOne);
   expect(fn()).toBe(42);
 });
 
 // 20) bind wires eager deps as values
-test.only("bind wires eager deps as values", () => {
+test("bind wires eager deps as values", () => {
   A15.mode = "eager" as const;
-  function A15() { return 2; }
+  function A15() {
+    return 2;
+  }
 
   const c = startContainer().define(A15).assign("IA15", A15).seal();
 
   let seen: number | undefined;
   UseA.dependsOn = ["A15"] as const;
   UseA.mode = "eager" as const;
-  function UseA(a: number) { seen = a; return 0; }
+  function UseA(a: number) {
+    seen = a;
+    return 0;
+  }
 
   c.bind(UseA)();
   expect(seen).toBe(2);
 });
 
 // 21) bind wires lazy deps as thunks
-test.only("bind wires lazy deps as thunks", () => {
+test("bind wires lazy deps as thunks", () => {
   A16.mode = "lazy" as const;
-  function A16() { return 5; }
+  function A16() {
+    return 5;
+  }
 
   const c = startContainer().define(A16).assign("IA16", A16).seal();
 
   let argType = "";
   UseALazy.dependsOn = ["A16"] as const;
   UseALazy.mode = "eager" as const;
-  function UseALazy(aThunk: () => number) { argType = typeof aThunk; return 0; }
+  function UseALazy(aThunk: () => number) {
+    argType = typeof aThunk;
+    return 0;
+  }
 
   c.bind(UseALazy)();
   expect(argType).toBe("function");
@@ -311,17 +379,23 @@ test.only("bind wires lazy deps as thunks", () => {
 // 22) resolve error mentions token name
 test("resolve error mentions token name", () => {
   const c = startContainer().seal();
-  expect(() => c.resolve("Nope" as unknown as never)).toThrow(/unassigned token "Nope"/i);
+  expect(() => c.resolve("Nope" as unknown as never)).toThrow(
+    /unassigned token "Nope"/i
+  );
 });
 
 // 23) dependency instance equals direct resolve (singleton propagation)
-test.only("dependency instance equals direct resolve", () => {
+test("dependency instance equals direct resolve", () => {
   B17.mode = "eager" as const;
-  function B17() { return {}; }
+  function B17() {
+    return {};
+  }
 
   A17.dependsOn = ["B17"] as const;
   A17.mode = "eager" as const;
-  function A17(b: object) { return b; }
+  function A17(b: object) {
+    return b;
+  }
 
   const c = startContainer()
     .define(A17)
