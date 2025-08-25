@@ -21,7 +21,6 @@ test("duplicate define throws", () => {
   expect(() => draft.define(A)).toThrow('Factory "A" already defined.');
 });
 
-// 4) assign of a factory that was never defined throws
 test("assigning an undefined factory throws", () => {
   function Foo() {
     return 0;
@@ -155,25 +154,20 @@ test("lazy thunk returns the same cached instance", () => {
   expect(Object.is(capturedFoo(), capturedFoo())).toBeTruthy();
 });
 
-test.skip("eager-eager direct cycle throws on resolve", () => {
+test("eager–eager direct cycle is rejected at assign time", () => {
   Foo.dependsOn = ["Bar"] as const;
-  function Foo(bar: { k: "Bar" }) {
+  function Foo(_bar: { k: "Bar" }) {
     return { k: "Foo" as const };
   }
 
   Bar.dependsOn = ["Foo"] as const;
-  function Bar(foo: { k: "Foo" }) {
+  function Bar(_foo: { k: "Foo" }) {
     return { k: "Bar" as const };
   }
 
-  const c = startContainer()
-    .define(Foo)
-    .define(Bar)
-    .assign("IFoo", Foo)
-    .assign("IBar", Bar)
-    .seal();
+  const builder = startContainer().define(Foo).define(Bar);
 
-  expect(() => c.resolve("IFoo")).toThrow(
+  expect(() => builder.assign("IFoo", Foo)).toThrow(
     'Cannot assign token "IFoo" for "Foo" because dependency "Bar" is neither assigned nor defined as lazy.'
   );
 });
@@ -195,21 +189,25 @@ test("lazy breaks direct cycle when thunk used after caching", () => {
     return { kind: "Foo", bar };
   }
 
-  const c = startContainer()
+  const container = startContainer()
     .define(Foo)
     .define(Bar)
     .assign("IFoo", Foo)
     .assign("IBar", Bar)
     .seal();
 
-  const foo = c.resolve("IFoo");
+  const foo = container.resolve("IFoo");
+
   expect(foo).toEqual(expect.objectContaining({ kind: "Foo" }));
+
   const bar = foo.bar();
+
   expect(Object.is(capturedFooAtBar, foo)).toBeTruthy();
+
   expect(bar).toEqual({ kind: "Bar" });
 });
 
-test.skip("calling lazy thunk before provider is assigned throws", () => {
+test("calling lazy thunk before provider is assigned throws", () => {
   Bar.mode = "lazy" as const;
   function Bar() {
     return {};
@@ -336,10 +334,16 @@ test("bind wires lazy deps as thunks", () => {
   expect(capturedFooType).toBe("function");
 });
 
-test.skip("resolve error mentions token name", () => {
-  const c = startContainer().seal();
-  expect(() => c.resolve("Nope" as unknown as never)).toThrow(
-    /unassigned token "Nope"/i
+test("resolve error mentions token name", () => {
+  function A() {
+    return 1;
+  }
+
+  const c = startContainer().define(A).assign("IA", A).seal();
+
+  // @ts-expect-error Argument of type '"Nope"' is not assignable to parameter of type '"IA"'.
+  expect(() => c.resolve("Nope")).toThrow(
+    'Cannot resolve unassigned token "Nope".'
   );
 });
 
