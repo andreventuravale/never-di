@@ -144,7 +144,7 @@ export function startContainer(): DefinePhase<{}> {
 
     const args = deps.map((depName) => {
       const depToken = assignedTokenByName.get(depName);
-      if (!depToken) throw new Error(`Cannot resolve dependency "${depName}" for "${tk}": provider not assigned.`);
+      if (!depToken) throw new Error(`Cannot resolve dependency "${depName}" for "${tk}": token not assigned.`);
       if (lazyByName.has(depName)) {
         // Lazy: pass thunk
         return () => resolve(depToken);
