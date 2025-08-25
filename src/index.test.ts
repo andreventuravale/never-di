@@ -1,10 +1,9 @@
-// di.two-phase.flat.test.ts
 import { expect, test } from "vitest";
-import { startContainer } from "."; // ← adjust
 
-// 1) define collects metadata without validating deps
+import { startContainer } from ".";
+
 test.only("define collects metadata without validating deps", () => {
-  Foo.dependsOn = ["Missing"] as const; // allowed: define phase doesn't validate
+  Foo.dependsOn = ["Missing"] as const;
   Foo.mode = "eager" as const;
   function Foo() {
     return "foo";
@@ -15,7 +14,7 @@ test.only("define collects metadata without validating deps", () => {
 });
 
 // 2) duplicate define (same function) throws
-test.only("duplicate define throws", () => {
+test("duplicate define throws", () => {
   A.mode = "eager" as const;
   function A() {
     return 1;
@@ -26,7 +25,7 @@ test.only("duplicate define throws", () => {
 });
 
 // 4) assign of a factory that was never defined throws
-test.only("assigning an undefined factory throws", () => {
+test("assigning an undefined factory throws", () => {
   Undef.mode = "eager" as const;
   function Undef() {
     return 0;
@@ -39,7 +38,7 @@ test.only("assigning an undefined factory throws", () => {
 });
 
 // 5) reassigning the same token throws
-test.only("reassigning same token throws", () => {
+test("reassigning same token throws", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return 1;
@@ -52,7 +51,7 @@ test.only("reassigning same token throws", () => {
 });
 
 // 6) the same factory cannot be assigned twice under different tokens
-test.only("same factory cannot be assigned twice", () => {
+test("same factory cannot be assigned twice", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return 1;
@@ -65,7 +64,7 @@ test.only("same factory cannot be assigned twice", () => {
 });
 
 // 7) assign with no deps and resolve
-test.only("assign with no deps resolves value", () => {
+test("assign with no deps resolves value", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return 7;
@@ -76,7 +75,7 @@ test.only("assign with no deps resolves value", () => {
 });
 
 // 8) resolve on unassigned token throws
-test.only("resolve on unassigned token throws", () => {
+test("resolve on unassigned token throws", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return 7;
@@ -88,7 +87,7 @@ test.only("resolve on unassigned token throws", () => {
 });
 
 // 9) singleton: resolve caches same instance
-test.only("resolve caches same instance", () => {
+test("resolve caches same instance", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return {};
@@ -101,7 +100,7 @@ test.only("resolve caches same instance", () => {
 });
 
 // 10) eager dependency is passed as value
-test.only("eager dependency is passed as value", () => {
+test("eager dependency is passed as value", () => {
   Foo.mode = "eager" as const;
   function Foo() {
     return { kind: "B" as const };
@@ -124,7 +123,7 @@ test.only("eager dependency is passed as value", () => {
 });
 
 // 11) lazy dependency is passed as thunk
-test.only("lazy dependency is passed as thunk", () => {
+test("lazy dependency is passed as thunk", () => {
   Foo.mode = "lazy" as const;
   function Foo() {
     return { kind: "B" as const };
