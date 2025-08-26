@@ -2,15 +2,12 @@ import { test } from "vitest";
 
 type Extend<R extends object, T extends string, V> = R & { [k in T]: V };
 
-interface Factory<
-  T = unknown,
-  Lazy extends boolean = false,
-  Deps extends readonly string[] = readonly [],
-  Args extends readonly unknown[] = readonly []
-> {
-  readonly dependsOn?: Deps;
-  readonly lazy?: Lazy;
-  (...args: Args): T;
+type Lazy<T> = () => T;
+
+interface Factory {
+  readonly dependsOn?: readonly string[];
+  readonly lazy?: true;
+  (...args: any | Lazy<any>): unknown;
 }
 
 interface Container<R extends object> {
