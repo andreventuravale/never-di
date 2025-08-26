@@ -2,7 +2,7 @@ import { test } from "vitest";
 
 interface Factory {}
 
-interface Container<R extends object = {}> {
+interface Container<R extends object> {
   resolve<K extends keyof R>(token: K): R[K];
 }
 
@@ -17,7 +17,7 @@ interface AssignApi<R extends object> {
   ): State3Api<R & { [k in K]: F }>;
 }
 
-interface State1Api<R extends object = {}> extends DefineApi<R> {}
+interface State1Api<R extends object> extends DefineApi<R> {}
 
 interface State2Api<R extends object> extends DefineApi<R>, AssignApi<R> {}
 
@@ -25,40 +25,32 @@ interface State3Api<R extends object> extends AssignApi<R> {
   seal(): Container<R>;
 }
 
-export function startContainerDraft(): State1Api {
-  const r: State1Api = {
+export function startContainerDraft(): State1Api<{}> {
+  return {
     define,
-  };
-
-  return r;
+  } as State1Api<{}>;
 
   function define(factory: Factory): State2Api<{}> {
     for (const f of [factory].flat()) {
       f;
     }
 
-    const r: State2Api<{}> = {
+    return {
       assign,
       define,
-    };
-
-    return r;
+    } as State2Api<{}>;
   }
 
   function assign(token: string, factory: Factory): State3Api<{}> {
-    const r: State3Api<{}> = {
+    return {
       assign,
       seal,
-    };
+    } as State3Api<{}>;
 
-    return r;
-
-    function seal(): Container {
-      const r: Container = {
+    function seal(): Container<{}> {
+      return {
         resolve,
-      };
-
-      return r;
+      } as Container<{}>;
 
       function resolve(token: string) {}
     }
