@@ -1,22 +1,28 @@
 import { test } from "vitest";
 
-interface Factory {}
-
 type Extend<R extends object, T extends string, V> = R & { [k in T]: V };
+
+interface Factory<
+  T = unknown,
+  Lazy extends boolean = false,
+  Deps extends readonly string[] = readonly [],
+  Args extends readonly unknown[] = readonly []
+> {
+  readonly dependsOn?: Deps;
+  readonly lazy?: Lazy;
+  (...args: Args): T;
+}
 
 interface Container<R extends object> {
   resolve<T extends keyof R>(token: T): R[T];
 }
 
 interface DefineApi<R extends object> {
-  define<F extends Factory | Factory[]>(factory: F): DraftLevel2<R>;
+  define<F extends Factory>(factory: F): DraftLevel2<R>;
 }
 
 interface AssignApi<R extends object> {
-  assign<
-    T extends string,
-    F extends Factory | Factory[]
-  >(
+  assign<T extends string, F extends Factory | Factory[]>(
     token: T,
     factory: F
   ): DraftLevel3<Extend<R, T, F>>;
@@ -103,7 +109,8 @@ test("happy path", () => {
   }
 
   const container = startContainerDraft()
-    .define([Ext1, Ext2])
+    .define(Ext1)
+    .define(Ext2)
     .define(Runtime)
     .assign("Exts", [Ext1, Ext2])
     .assign("Runtime", Runtime)
