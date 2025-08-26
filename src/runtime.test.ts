@@ -2,35 +2,40 @@ import { test } from "vitest";
 
 interface Factory {}
 
+type Extend<R extends object, T extends string, V> = R & { [k in T]: V };
+
 interface Container<R extends object> {
-  resolve<K extends keyof R>(token: K): R[K];
+  resolve<T extends keyof R>(token: T): R[T];
 }
 
 interface DefineApi<R extends object> {
-  define<F extends Factory | Factory[]>(factory: F): State2Api<R>;
+  define<F extends Factory | Factory[]>(factory: F): DraftLevel2<R>;
 }
 
 interface AssignApi<R extends object> {
-  assign<K extends string, F extends Factory | Factory[]>(
-    token: K,
+  assign<
+    T extends string,
+    F extends Factory | Factory[]
+  >(
+    token: T,
     factory: F
-  ): State3Api<R & { [k in K]: F }>;
+  ): DraftLevel3<Extend<R, T, F>>;
 }
 
-interface State1Api<R extends object> extends DefineApi<R> {}
+interface DraftLevel1<R extends object> extends DefineApi<R> {}
 
-interface State2Api<R extends object> extends DefineApi<R>, AssignApi<R> {}
+interface DraftLevel2<R extends object> extends DefineApi<R>, AssignApi<R> {}
 
-interface State3Api<R extends object> extends AssignApi<R> {
+interface DraftLevel3<R extends object> extends AssignApi<R> {
   seal(): Container<R>;
 }
 
-export function startContainerDraft(): State1Api<{}> {
+export function startContainerDraft(): DraftLevel1<{}> {
   return {
     define,
-  } as State1Api<{}>;
+  } as DraftLevel1<{}>;
 
-  function define(factory: Factory): State2Api<{}> {
+  function define(factory: Factory): DraftLevel2<{}> {
     for (const f of [factory].flat()) {
       f;
     }
@@ -38,14 +43,14 @@ export function startContainerDraft(): State1Api<{}> {
     return {
       assign,
       define,
-    } as State2Api<{}>;
+    } as DraftLevel2<{}>;
   }
 
-  function assign(token: string, factory: Factory): State3Api<{}> {
+  function assign(token: string, factory: Factory): DraftLevel3<{}> {
     return {
       assign,
       seal,
-    } as State3Api<{}>;
+    } as DraftLevel3<{}>;
 
     function seal(): Container<{}> {
       return {
