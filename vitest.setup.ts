@@ -1,26 +1,19 @@
-// test/setup.ts
-import { expect } from "vitest";
 import * as ts from "typescript";
+import { expect } from "vitest";
 
 type HasDiagnostics = {
   diagnostics: readonly ts.Diagnostic[];
-  formatted?: string; // optional pretty output from your helper
+  formatted?: string;
 };
 
-function getDiagnostics(
-  received: HasDiagnostics | readonly ts.Diagnostic[]
-): readonly ts.Diagnostic[] {
-  return Array.isArray(received)
-    ? received
-    : received?.diagnostics ?? [];
-}
-
-function flattenMessage(messageText: string | ts.DiagnosticMessageChain): string {
+function flattenMessage(
+  messageText: string | ts.DiagnosticMessageChain
+): string {
   return ts.flattenDiagnosticMessageText(messageText, "\n");
 }
 
-function msgMatches(msg: string, pattern: RegExp | string): boolean {
-  return pattern instanceof RegExp ? pattern.test(msg) : msg.trim() === pattern.trim();
+function msgMatches(msg: string, messages: string[]): boolean {
+  return messages.every((pattern) => msg.includes(pattern));
 }
 
 function formatHost(): ts.FormatDiagnosticsHost {
@@ -42,43 +35,42 @@ function format(diags: readonly ts.Diagnostic[]): string {
 }
 
 expect.extend({
-  toReportError(
-    received: HasDiagnostics | readonly ts.Diagnostic[],
-    code: number,
-    message: RegExp | string
-  ) {
-    const diagnostics = getDiagnostics(received);
+  toReportError(received: HasDiagnostics, code: number, message: string) {
+    const diagnostics = received.diagnostics;
 
     const matching = diagnostics.filter((d) => {
       if (d.code !== code) return false;
 
       const text = flattenMessage(d.messageText);
 
-      return msgMatches(text, message);
+      return msgMatches(
+        text,
+        message.split("\n").map((msg) => msg.trim())
+      );
     });
 
     const pass = matching.length > 0;
-
-    console.log(diagnostics)
 
     return {
       pass,
       message: () =>
         pass
-          ? `Expected NOT to find TS${code} matching ${String(message)}, but found:\n${format(matching)}`
-          : `Expected to find TS${code} matching ${String(message)}, but diagnostics were:\n${format(diagnostics)}`,
+          ? `Expected NOT to find TS${code} matching ${String(
+              message
+            )}, but found:\n${format(matching)}`
+          : `Expected to find TS${code} matching ${String(
+              message
+            )}, but diagnostics were:\n${format(diagnostics)}`,
     };
   },
 });
 
-// Type augmentation for Vitest
 declare module "vitest" {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  interface Assertion<T = any> {
-    toReportError(code: number, message: RegExp | string): void;
+  interface Assertion {
+    toReportError(code: number, message: string): void;
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   interface AsymmetricMatchersContaining {
-    toReportError(code: number, message: RegExp | string): void;
+    toReportError(code: number, message: string): void;
   }
 }

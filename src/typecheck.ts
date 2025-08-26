@@ -41,7 +41,7 @@ export async function typecheck(
 }> {
   const defaults: ts.CompilerOptions = {
     module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.Bundler,
     noEmit: true,
     skipLibCheck: true,
     strict: true,
