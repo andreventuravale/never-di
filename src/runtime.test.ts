@@ -19,7 +19,7 @@ interface DefineApi<R extends object> {
 }
 
 interface AssignApi<R extends object> {
-  assign<T extends string, F extends Factory | Factory[]>(
+  assign<T extends string, F extends Factory>(
     token: T,
     factory: F
   ): DraftLevel3<Extend<R, T, F>>;
@@ -72,7 +72,7 @@ test("happy path", () => {
 
   Runtime.assignMode = "lazy";
 
-  Runtime.dependsOn = ["Exts"] as const;
+  Runtime.dependsOn = ["Ext"] as const;
 
   function Runtime(exts: Ext[]): Runtime {
     return {
@@ -109,7 +109,7 @@ test("happy path", () => {
     .define(Ext1)
     .define(Ext2)
     .define(Runtime)
-    .assign("Exts", [Ext1, Ext2])
+    .assign("Exts", Ext1)
     .assign("Runtime", Runtime)
     .seal();
 
