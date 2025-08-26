@@ -1,14 +1,14 @@
 import { expect, test } from "vitest";
 
-import { startContainer } from ".";
+import { createContainerDraft } from ".";
 import { typecheck } from "./typecheck";
 
 test("resolve requires known token", async () => {
   const result = await typecheck({
     "case.ts": `
-      import { startContainer } from ".";
+      import { createContainerDraft } from ".";
       function Foo() { return 1; }
-      const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
+      const c = createContainerDraft().define(Foo).assign("IFoo", Foo).seal();
       c.resolve("Nope");
     `,
   });
@@ -23,9 +23,9 @@ test("resolve requires known token", async () => {
 test("resolve result type flows", async () => {
   const result = await typecheck({
     "case.ts": `
-      import { startContainer } from ".";
+      import { createContainerDraft } from ".";
       function Foo() { return 123; }
-      const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
+      const c = createContainerDraft().define(Foo).assign("IFoo", Foo).seal();
       const x = c.resolve("IFoo");
       x.toUpperCase();
     `,
@@ -41,9 +41,9 @@ test("resolve result type flows", async () => {
 test("bind rejects wrong dep type", async () => {
   const result = await typecheck({
     "case.ts": `
-      import { startContainer } from ".";
+      import { createContainerDraft } from ".";
       function Foo() { return 42; }
-      const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
+      const c = createContainerDraft().define(Foo).assign("IFoo", Foo).seal();
 
       function UseFoo(a: string) { return a.length; }
       UseFoo.dependsOn = ["IFoo"] as const;
@@ -63,10 +63,10 @@ test("bind rejects wrong dep type", async () => {
 test("bind detects tuple arg mismatch", async () => {
   const result = await typecheck({
     "case.ts": `
-      import { startContainer } from ".";
+      import { createContainerDraft } from ".";
       function Foo() { return 1; }
       function Bar() { return "s"; }
-      const c = startContainer()
+      const c = createContainerDraft()
         .define(Foo)
         .define(Bar)
         .assign("IFoo", Foo)
@@ -94,9 +94,9 @@ test("bind detects tuple arg mismatch", async () => {
 test("bind unknown token in dependsOn", async () => {
   const result = await typecheck({
     "case.ts": `
-      import { startContainer } from ".";
+      import { createContainerDraft } from ".";
       function Foo() { return 1; }
-      const c = startContainer().define(Foo).assign("IFoo", Foo).seal();
+      const c = createContainerDraft().define(Foo).assign("IFoo", Foo).seal();
 
       Use.dependsOn = ["Nope"] as const;
       function Use(nope: number) { return nope + 1; }
@@ -125,7 +125,7 @@ test("assign requires eager deps to be already assigned", async () => {
     return foo + bar;
   }
 
-  const phase = startContainer()
+  const phase = createContainerDraft()
     .define(Foo)
     .define(Baz)
     .assign("IFoo", Foo)
@@ -133,10 +133,10 @@ test("assign requires eager deps to be already assigned", async () => {
 
   // const result = await typecheck({
   //   "case.ts": `
-  //     import { startContainer } from ".";
+  //     import { createContainerDraft } from ".";
 
   //     function Dep() { return 1; }
-  //     const phase = startContainer()
+  //     const phase = createContainerDraft()
   //       .define(Dep)
   //       .assign("IDep", Dep); // only "IDep" is in the registry
 
