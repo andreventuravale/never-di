@@ -6,23 +6,33 @@ interface Metadata {
   readonly token?: string;
 }
 
+interface State<
+  L extends string,
+  M extends Record<string, Metadata>,
+  R extends Record<string, Factory>
+> {
+  lazy: L;
+  meta: M;
+  reg: R;
+}
+
 type WithLazy<S, Token> = S extends {
   __lazy__: infer Prev;
 }
-  ? { __lazy__: Prev | Token }
-  : { __lazy__: Token };
+  ? Omit<S, "__lazy__"> & { __lazy__: Prev | Token }
+  : Omit<S, "__lazy__"> & { __lazy__: Token };
 
 type WithMeta<S, Meta> = S extends {
   __meta__: infer Prev;
 }
-  ? { __meta__: Prev & Meta }
-  : { __meta__: Meta };
+  ? Omit<S, "__meta__"> & { __meta__: Prev & Meta }
+  : Omit<S, "__meta__"> & { __meta__: Meta };
 
-type WithRegistry<S, F extends Factory> = S extends {
+type WithRegistry<S, F extends Record<string, Factory>> = S extends {
   __reg__: infer Prev extends Record<string, Factory>;
 }
-  ? { __reg__: Prev | F }
-  : { __reg__: F };
+  ? Omit<S, "__reg__"> & { __reg__: Prev & F }
+  : Omit<S, "__reg__"> & { __reg__: F };
 
 type Tk<M extends Metadata> = M extends { token: infer Tk extends string }
   ? Tk
@@ -34,7 +44,6 @@ interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
 
 interface DefineApi<S = {}> {
   defineLazy<F extends Factory>(f: F): Stage2<WithLazy<S, Tk<F>>>;
-  //   defineLazyMany(f: Factory[]): Stage2<Acc<S, Record<Tk<typeof f>, typeof f>>>;
 }
 
 //--------------------
@@ -60,7 +69,11 @@ type UncoveredDeps<Reg, F extends Metadata> = Exclude<
 
 type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
   ? Reg
-  : { __unassigned__: UncoveredDeps<Reg, F> };
+  : { [k in Tk<F>]: { depends: { on: UncoveredDeps<Reg, F> } } };
+
+type Reg<S> = S extends { __reg__: infer R extends Record<string, Factory> }
+  ? R
+  : never;
 
 //--------------------
 
@@ -68,9 +81,8 @@ interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
   ): S extends Check<S, F>
-    ? Stage3<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, F>>
-    : never;
-  //   assignMany(f: Factory[]): Stage3<S>;
+    ? Stage3<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
+    : Check<S, F>;
 }
 
 interface Stage1<S = {}> extends DefineApi<S> {}
@@ -78,11 +90,11 @@ interface Stage1<S = {}> extends DefineApi<S> {}
 interface Stage2<S = {}> extends DefineApi<S>, AssignApi<S> {}
 
 interface Stage3<S = {}> extends AssignApi<S> {
-  seal(): Container<S>;
+  seal(): Container<Reg<S>>;
 }
 
-interface Container<S = {}> {
-  resolve<T extends keyof S>(token: string): S[T];
+interface Container<Reg extends Record<string, Factory> = {}> {
+  resolve<T extends keyof Reg>(token: T): ReturnType<Reg[T]>;
 }
 
 function createContainerDraft(): Stage1 {
@@ -101,13 +113,13 @@ function createContainerDraft(): Stage1 {
     return {
       assign,
       seal,
-    } as Stage3;
+    } as any;
   }
 
   function seal(): Container {
     return {
       resolve,
-    } as Container;
+    } as any;
   }
 
   function resolve<T>(token: string): T {
