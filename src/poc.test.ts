@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
 
 interface Metadata {
-  readonly dependsOn?: string[];
+  readonly dependsOn?: readonly string[];
   readonly lazy?: true;
   readonly token?: string;
 }
@@ -118,6 +118,7 @@ test("poc", async () => {
     createContainerDraft()
       .defineLazy(foo)
       .assign(bar)
+      .assign(foo)
       .seal()
       .resolve("bar")
       .say()
