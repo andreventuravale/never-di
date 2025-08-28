@@ -4,9 +4,13 @@ type Extend<R extends object, T extends string, V> = R & { [k in T]: V };
 
 type Lazy<T> = () => T;
 
-interface Factory {
+interface Metadata {
+  readonly token: string;
   readonly dependsOn?: readonly string[];
   readonly lazy?: true;
+}
+
+interface Factory extends Metadata {
   (...args: any | Lazy<any>): unknown;
 }
 
@@ -15,12 +19,11 @@ interface Container<R extends object> {
 }
 
 interface DefineApi<R extends object> {
-  define<F extends Factory>(factory: F): DraftLevel2<R>;
+  define<F extends Factory | Factory[]>(factory: F): DraftLevel2<R>;
 }
 
 interface AssignApi<R extends object> {
-  assign<T extends string, F extends Factory>(
-    token: T,
+  assign<T extends string, F extends Factory | Factory[]>(
     factory: F
   ): DraftLevel3<Extend<R, T, F>>;
 }
@@ -70,9 +73,11 @@ test("happy path", () => {
     exts: Ext[];
   };
 
-  Runtime.assignMode = "lazy";
+  Runtime.token = "Runtime" as const;
 
   Runtime.dependsOn = ["Ext"] as const;
+
+  Runtime.lazy = true as const;
 
   function Runtime(exts: Ext[]): Runtime {
     return {
@@ -85,6 +90,8 @@ test("happy path", () => {
     query: () => string[];
   };
 
+  Ext1.token = "Ext" as const;
+
   Ext1.dependsOn = ["Runtime"] as const;
 
   function Ext1(runtime: () => Runtime): Ext {
@@ -96,6 +103,8 @@ test("happy path", () => {
     };
   }
 
+  Ext2.token = "Ext" as const;
+
   Ext2.dependsOn = ["Runtime"] as const;
 
   function Ext2(runtime: () => Runtime): Ext {
@@ -106,11 +115,10 @@ test("happy path", () => {
   }
 
   const container = startContainerDraft()
-    .define(Ext1)
-    .define(Ext2)
+    .define([Ext1, Ext2])
     .define(Runtime)
-    .assign("Exts", Ext1)
-    .assign("Runtime", Runtime)
+    .assign([Ext1, Ext2])
+    .assign(Runtime)
     .seal();
 
   const runtime = container.resolve("Runtime");
