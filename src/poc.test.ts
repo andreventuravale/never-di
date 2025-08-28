@@ -1,4 +1,4 @@
-import { test } from "vitest";
+import { expect, test } from "vitest";
 
 interface Metadata {
   readonly dependsOn?: string[];
@@ -10,17 +10,23 @@ interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
   (...args: Args): T;
 }
 
-interface Stage1<Registry = {}> {
+interface DefineApi<Registry = {}> {
   defineLazy(f: Factory): Stage2<Registry>;
   defineLazyMany(f: Factory[]): Stage2<Registry>;
 }
 
-interface Stage2<Registry = {}> extends Stage1 {
+interface AssignApi<Registry = {}> {
   assign(f: Factory): Stage3<Registry>;
   assignMany(f: Factory[]): Stage3<Registry>;
 }
 
-interface Stage3<Registry = {}> extends Stage2 {
+interface Stage1<Registry = {}> extends DefineApi<Registry> {}
+
+interface Stage2<Registry = {}>
+  extends DefineApi<Registry>,
+    AssignApi<Registry> {}
+
+interface Stage3<Registry = {}> extends AssignApi<Registry> {
   seal(): Container<Registry>;
 }
 
@@ -36,6 +42,8 @@ function createContainerDraft(): Stage1 {
 
   function defineLazy(f: Factory): Stage2 {
     return {
+      assign,
+      assignMany,
       defineLazy,
       defineLazyMany,
     } satisfies Stage2;
@@ -43,6 +51,8 @@ function createContainerDraft(): Stage1 {
 
   function defineLazyMany(f: Factory[]): Stage2 {
     return {
+      assign,
+      assignMany,
       defineLazy,
       defineLazyMany,
     } satisfies Stage2;
@@ -50,21 +60,18 @@ function createContainerDraft(): Stage1 {
 
   function assign(f: Factory): Stage3 {
     return {
-      defineLazy,
-      defineLazyMany,
       assign,
       assignMany,
+      seal,
     } satisfies Stage3;
   }
 
   function assignMany(f: Factory[]): Stage3 {
     return {
-      defineLazy,
-      defineLazyMany,
       assign,
       assignMany,
       seal,
-    } as Stage3;
+    } satisfies Stage3;
   }
 
   function seal(): Container {
@@ -79,5 +86,40 @@ function createContainerDraft(): Stage1 {
 }
 
 test("poc", async () => {
-  createContainerDraft();
+  foo.dependsOn = ["bar"] as const;
+  foo.lazy = true as const;
+  foo.token = "foo" as const;
+
+  type Foo = {
+    say(): string;
+  };
+
+  function foo(): Foo {
+    return {
+      say: () => "foo",
+    };
+  }
+
+  bar.dependsOn = ["foo"] as const;
+  bar.lazy = true as const;
+  bar.token = "bar" as const;
+
+  type Bar = {
+    say(): string;
+  };
+
+  function bar(foo: () => Foo): Bar {
+    return {
+      say: foo().say,
+    };
+  }
+
+  expect(
+    createContainerDraft()
+      .defineLazy(foo)
+      .assign(bar)
+      .seal()
+      .resolve("bar")
+      .say()
+  ).toMatch("foo");
 });
