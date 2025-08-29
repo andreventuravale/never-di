@@ -40,6 +40,8 @@ interface Stage2<S = {}> extends AssignApi<S> {
   seal(): SealResult<S>;
 }
 
+// -------------------------------------------------------------------
+
 type AllTokensEqual<
   Fs extends readonly Factory[],
   K extends string
