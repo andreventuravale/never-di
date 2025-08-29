@@ -189,6 +189,27 @@ type SealResult<S> = SealCheck<S> extends S ? Container<Reg<S>> : SealCheck<S>;
 
 //@@@@@@@@@@@@@@@@@@@@
 
+//####################
+
+// ---- forbid in-batch deps for assignMany ----
+type TokensOf<Fs extends readonly Factory[]> = TokenOf<Fs[number]>;
+type DepsOf<Fs extends readonly Factory[]> = DepKeys<Fs[number]>;
+type IntraBatchDeps<Fs extends readonly Factory[]> = Extract<
+  DepsOf<Fs>,
+  TokensOf<Fs>
+>;
+
+type IntraBatchError<Fs extends readonly Factory[]> =
+  IntraBatchDeps<Fs> extends never
+    ? never
+    : {
+        type: "error";
+        message: "assignMany forbids in-batch dependencies";
+        tokens: IntraBatchDeps<Fs>;
+      };
+
+//####################
+
 interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
@@ -198,9 +219,11 @@ interface AssignApi<S = {}> {
 
   assignMany<const Fs extends readonly [Factory, ...Factory[]]>(
     fs: readonly [...Fs]
-  ): S extends Check<S, Fs[number]>
-    ? Stage2<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
-    : Check<S, Fs[number]>;
+  ): IntraBatchError<Fs> extends never
+    ? S extends Check<S, Fs[number]>
+      ? Stage2<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
+      : Check<S, Fs[number]>
+    : IntraBatchError<Fs>;
 }
 
 interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {}
@@ -406,9 +429,15 @@ test("assignMany forbids in-batch deps", () => {
   }
   b.token = "b" as const;
 
-  createContainerDraft().assignMany([a, b]).seal();
+  createContainerDraft()
+    .assignMany([a, b])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
 
-  createContainerDraft().assignMany([b, a]).seal();
+  createContainerDraft()
+    .assignMany([b, a])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
 });
 
 test("assignMany passes when deps are provided outside the batch", () => {
