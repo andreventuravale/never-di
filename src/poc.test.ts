@@ -61,11 +61,97 @@ type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
   ? Reg
   : { [k in Tk<F>]: { depends: { on: UncoveredDeps<Reg, F> } } };
 
-type Reg<S> = S extends { reg: infer R extends Record<string, Factory> }
+// type Reg<S> = S extends { reg: infer R extends Record<string, Factory> }
+//   ? R
+//   : never;
+
+//--------------------
+
+//====================
+//====================
+//====================
+
+// --- helpers ---
+type TokenOf<F extends Factory> = NonNullable<F["token"]>;
+
+type Head<T extends readonly unknown[]> = T extends readonly [
+  infer H,
+  ...unknown[]
+]
+  ? H
+  : never;
+type Tail<T extends readonly unknown[]> = T extends readonly [
+  unknown,
+  ...infer R
+]
+  ? R
+  : readonly [];
+
+type AllTokensEqual<
+  Fs extends readonly Factory[],
+  K extends string
+> = Fs extends readonly []
+  ? true
+  : Head<Fs> extends infer H extends Factory
+  ? [TokenOf<H>] extends [K]
+    ? [K] extends [TokenOf<H>]
+      ? AllTokensEqual<Tail<Fs>, K>
+      : false
+    : false
+  : false;
+
+type SameTokenKey<Fs extends readonly Factory[]> = Fs extends readonly [
+  infer H extends Factory,
+  ...infer _ extends readonly Factory[]
+]
+  ? AllTokensEqual<Fs, TokenOf<H>> extends true
+    ? TokenOf<H>
+    : never
+  : never;
+
+type GroupByToken<Fs extends readonly Factory[]> = {
+  [K in TokenOf<Fs[number]>]: Extract<Fs[number], { token: K }>[];
+};
+
+// --- meta/reg writers (tuple when same token; grouped arrays otherwise) ---
+type WithMetaManyTuple<
+  S,
+  Fs extends readonly Factory[]
+> = SameTokenKey<Fs> extends infer K extends string
+  ? S extends { meta: infer M }
+    ? Omit<S, "meta"> & { meta: M & Record<K, Fs> }
+    : S & { meta: Record<K, Fs> }
+  : S extends { meta: infer M }
+  ? Omit<S, "meta"> & { meta: M & GroupByToken<Fs> }
+  : S & { meta: GroupByToken<Fs> };
+
+type WithRegistryManyTuple<
+  S,
+  Fs extends readonly Factory[]
+> = SameTokenKey<Fs> extends infer K extends string
+  ? S extends { reg: infer R }
+    ? Omit<S, "reg"> & { reg: R & Record<K, Fs> }
+    : S & { reg: Record<K, Fs> }
+  : S extends { reg: infer R }
+  ? Omit<S, "reg"> & { reg: R & GroupByToken<Fs> }
+  : S & { reg: GroupByToken<Fs> };
+
+// --- resolve typing (single vs many) ---
+type Reg<S> = S extends {
+  reg: infer R extends Record<string, Factory | readonly Factory[]>;
+}
   ? R
   : never;
 
-//--------------------
+type ReturnOfRegValue<V> = V extends readonly Factory[]
+  ? ReturnType<V[number]>[]
+  : V extends Factory
+  ? ReturnType<V>
+  : never;
+
+//====================
+//====================
+//====================
 
 interface AssignApi<S = {}> {
   assign<F extends Factory>(
@@ -74,16 +160,11 @@ interface AssignApi<S = {}> {
     ? Stage3<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
     : Check<S, F>;
 
-  assignMany<F extends Factory[]>(
-    f: F
-  ): S extends Check<S, F[number]>
-    ? Stage3<
-        WithRegistry<
-          WithMeta<S, Record<Tk<F[number]>, F[number]>>,
-          Record<Tk<F[number]>, F[number]>
-        >
-      >
-    : Check<S, F[number]>;
+  assignMany<const Fs extends readonly [Factory, ...Factory[]]>(
+    fs: readonly [...Fs]
+  ): S extends Check<S, Fs[number]>
+    ? Stage3<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
+    : Check<S, Fs[number]>;
 }
 
 interface Stage1<S = {}> extends DefineApi<S> {}
@@ -94,8 +175,10 @@ interface Stage3<S = {}> extends AssignApi<S> {
   seal(): Container<Reg<S>>;
 }
 
-interface Container<Reg extends Record<string, Factory> = {}> {
-  resolve<T extends keyof Reg>(token: T): ReturnType<Reg[T]>;
+interface Container<
+  R extends Record<string, Factory | readonly Factory[]> = {}
+> {
+  resolve<T extends keyof R & string>(token: T): ReturnOfRegValue<R[T]>;
 }
 
 function createContainerDraft(): Stage1 {
@@ -211,12 +294,11 @@ test("many", async () => {
     };
   }
 
-  expect(
-    createContainerDraft()
-      .defineLazy(foo)
-      .assignMany([bar1, bar2])
-      .seal()
-      .resolve("bar")
-      .say()
-  ).toMatch("foo");
+  const bars = createContainerDraft()
+    .defineLazy(foo)
+    .assignMany([bar1, bar2])
+    .seal()
+    .resolve("bar");
+
+  bars.forEach(({ say }) => expect(say()).toMatch("foo"));
 });
