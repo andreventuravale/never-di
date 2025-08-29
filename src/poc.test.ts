@@ -59,7 +59,12 @@ type UncoveredDeps<Reg, F extends Metadata> = Exclude<
 
 type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
   ? Reg
-  : { [k in Tk<F>]: { depends: { on: UncoveredDeps<Reg, F> } } };
+  : {
+      type: "error";
+      message: "factory has dependencies that are not assigned";
+      dependent: Tk<F>;
+      unsigned_dependencies: UncoveredDeps<Reg, F>;
+    };
 
 // type Reg<S> = S extends { reg: infer R extends Record<string, Factory> }
 //   ? R
@@ -153,6 +158,37 @@ type ReturnOfRegValue<V> = V extends readonly Factory[]
 //====================
 //====================
 
+//@@@@@@@@@@@@@@@@@@@@
+
+// --- seal guard: every lazy token must be assigned ---
+
+// Keys already assigned (your meta collects them)
+type AssignedKeys<S> = keyof (S extends { meta: infer M } ? M : {}) & string;
+
+// Lazy tokens collected via defineLazy / defineMany
+type LazyKeysOf<S> = S extends { lazy: infer L }
+  ? L extends string
+    ? L
+    : never
+  : never;
+
+// What lazy tokens are still missing?
+type UnassignedLazy<S> = Exclude<LazyKeysOf<S>, AssignedKeys<S>>;
+
+// Error shape (mirrors your Check<> style)
+type SealCheck<S> = [UnassignedLazy<S>] extends [never]
+  ? S
+  : {
+      type: "error";
+      message: "one or more lazy factories remain unassigned";
+      unsigned_tokens: UnassignedLazy<S>;
+    };
+
+// If SealCheck passes, return Container; else return the error shape
+type SealResult<S> = SealCheck<S> extends S ? Container<Reg<S>> : SealCheck<S>;
+
+//@@@@@@@@@@@@@@@@@@@@
+
 interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
@@ -172,7 +208,7 @@ interface Stage1<S = {}> extends DefineApi<S> {}
 interface Stage2<S = {}> extends DefineApi<S>, AssignApi<S> {}
 
 interface Stage3<S = {}> extends AssignApi<S> {
-  seal(): Container<Reg<S>>;
+  seal(): SealResult<S>;
 }
 
 interface Container<
@@ -281,6 +317,7 @@ test("many", async () => {
   const bars = createContainerDraft()
     .defineLazy(foo)
     .assignMany([bar1, bar2])
+    .assign(foo)
     .seal()
     .resolve("bar");
 
@@ -339,6 +376,7 @@ test("many hetero deps", async () => {
     .assign(qux)
     .assign(bar)
     .assignMany([baz1, baz2])
+    .assign(foo)
     .seal()
     .resolve("baz");
 
