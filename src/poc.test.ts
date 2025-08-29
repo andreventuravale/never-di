@@ -274,11 +274,19 @@ function createContainerDraft(): Stage1 {
       throw new Error(`token is not assigned: ${token}`);
     }
 
-    if (Array.isArray(entry)) {
-      return entry.map(_resolve) as T;
-    }
+    if (lazy.has(token)) {
+      if (Array.isArray(entry)) {
+        return (() => entry.map(_resolve)) as T;
+      }
 
-    return _resolve(entry) as T;
+      return (() => _resolve(entry)) as T;
+    } else {
+      if (Array.isArray(entry)) {
+        return entry.map(_resolve) as T;
+      }
+
+      return _resolve(entry) as T;
+    }
   }
 
   function _resolve(factory: Factory): unknown {
@@ -311,7 +319,9 @@ test.only("poc", async () => {
 
   function bar(foo: () => T): T {
     return {
-      say: foo().say,
+      say: () => {
+        return foo().say();
+      },
     };
   }
 
