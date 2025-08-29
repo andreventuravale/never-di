@@ -193,21 +193,19 @@ interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
   ): S extends Check<S, F>
-    ? Stage3<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
+    ? Stage2<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
     : Check<S, F>;
 
   assignMany<const Fs extends readonly [Factory, ...Factory[]]>(
     fs: readonly [...Fs]
   ): S extends Check<S, Fs[number]>
-    ? Stage3<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
+    ? Stage2<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
     : Check<S, Fs[number]>;
 }
 
-interface Stage1<S = {}> extends DefineApi<S> {}
+interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {}
 
-interface Stage2<S = {}> extends DefineApi<S>, AssignApi<S> {}
-
-interface Stage3<S = {}> extends AssignApi<S> {
+interface Stage2<S = {}> extends AssignApi<S> {
   seal(): SealResult<S>;
 }
 
@@ -219,19 +217,31 @@ interface Container<
 
 function createContainerDraft(): Stage1 {
   return {
+    assign,
+    assignMany,
     defineLazy,
   } as any;
 
   function defineLazy(f: Factory): Stage2 {
     return {
       assign,
+      assignMany,
       defineLazy,
     } as any;
   }
 
-  function assign(f: Factory): Stage3 {
+  function assign(f: Factory): Stage2 {
     return {
       assign,
+      assignMany,
+      seal,
+    } as any;
+  }
+
+  function assignMany(f: Factory): Stage2 {
+    return {
+      assign,
+      assignMany,
       seal,
     } as any;
   }
@@ -381,4 +391,42 @@ test("many hetero deps", async () => {
     .resolve("baz");
 
   bars.forEach(({ say }) => expect(say()).toMatch("foo"));
+});
+
+// a depends on b; both are in the same batch ⇒ error
+test("assignMany forbids in-batch deps", () => {
+  function a(_: T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.token = "a" as const;
+
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "b" as const;
+
+  createContainerDraft().assignMany([a, b]).seal();
+
+  createContainerDraft().assignMany([b, a]).seal();
+});
+
+test("assignMany passes when deps are provided outside the batch", () => {
+  function a(_: () => T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.lazy = true as const;
+  a.token = "a" as const;
+
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "b" as const;
+
+  createContainerDraft()
+    .defineLazy(b) // dep provided *outside* the batch
+    .assignMany([a]) // ok
+    .assign(b) // or .assign later
+    .seal();
 });
