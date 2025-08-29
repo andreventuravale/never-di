@@ -66,10 +66,6 @@ type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
       unsigned_dependencies: UncoveredDeps<Reg, F>;
     };
 
-// type Reg<S> = S extends { reg: infer R extends Record<string, Factory> }
-//   ? R
-//   : never;
-
 //--------------------
 
 //====================
@@ -257,8 +253,26 @@ function createContainerDraft(): Stage1 {
     return { assign, assignMany, seal } as any;
   }
 
-  function assignMany(f: Factory): Stage2 {
-    map.set(f.token, f);
+  function assignMany(f: Factory[]): Stage2 {
+    if (f.length === 0) {
+      throw new Error("empty array was  given");
+    }
+
+    const tokens = f.reduce((set, factory) => {
+      set.add(factory.token);
+
+      return set;
+    }, new Set<string>());
+
+    if (tokens.size > 1) {
+      throw new Error(
+        `unique token expected but many was given: ${Array.from(
+          tokens.values()
+        ).join(", ")}`
+      );
+    }
+
+    map.set(f[0].token, f);
 
     return { assign, assignMany, seal } as any;
   }
@@ -302,7 +316,7 @@ type T = {
   say(): string;
 };
 
-test.only("poc", async () => {
+test("poc", async () => {
   foo.dependsOn = ["bar"] as const;
   foo.lazy = true as const;
   foo.token = "foo" as const;
@@ -336,105 +350,117 @@ test.only("poc", async () => {
   ).toMatch("foo");
 });
 
-// test("many", async () => {
-//   foo.dependsOn = ["bar"] as const;
-//   foo.lazy = true as const;
-//   foo.token = "foo" as const;
+test("many", async () => {
+  foo.dependsOn = ["bar"] as const;
+  foo.lazy = true as const;
+  foo.token = "foo" as const;
 
-//   function foo(): T {
-//     return {
-//       say: () => "foo",
-//     };
-//   }
+  function foo(bar: T[]): T {
+    return {
+      say: () => `foo: ${bar.length}`,
+    };
+  }
 
-//   bar1.dependsOn = ["foo"] as const;
-//   bar1.lazy = true as const;
-//   bar1.token = "bar" as const;
+  bar1.dependsOn = ["foo"] as const;
+  bar1.token = "bar" as const;
 
-//   function bar1(foo: () => T): T {
-//     return {
-//       say: foo().say,
-//     };
-//   }
+  function bar1(foo: () => T): T {
+    return {
+      say: () => {
+        return foo().say();
+      },
+    };
+  }
 
-//   bar2.dependsOn = ["foo"] as const;
-//   bar2.lazy = true as const;
-//   bar2.token = "bar" as const;
+  bar2.dependsOn = ["foo"] as const;
+  bar2.token = "bar" as const;
 
-//   function bar2(foo: () => T): T {
-//     return {
-//       say: foo().say,
-//     };
-//   }
+  function bar2(foo: () => T): T {
+    return {
+      say: () => {
+        return foo().say();
+      },
+    };
+  }
 
-//   const bars = createContainerDraft()
-//     .defineLazy(foo)
-//     .assignMany([bar1, bar2])
-//     .assign(foo)
-//     .seal()
-//     .resolve("bar");
+  const bars = createContainerDraft()
+    .defineLazy(foo)
+    .assignMany([bar1, bar2])
+    .assign(foo)
+    .seal()
+    .resolve("bar");
 
-//   bars.forEach(({ say }) => expect(say()).toMatch("foo"));
-// });
+  bars.forEach(({ say }) => {
+    expect(say()).toMatch("foo: 2");
+  });
+});
 
-// test("many hetero deps", async () => {
-//   foo.dependsOn = ["bar"] as const;
-//   foo.lazy = true as const;
-//   foo.token = "foo" as const;
+test.only("many hetero deps", async () => {
+  foo.dependsOn = ["bar"] as const;
+  foo.lazy = true as const;
+  foo.token = "foo" as const;
 
-//   function foo(bar: T): T {
-//     return {
-//       say: bar.say,
-//     };
-//   }
+  function foo(bar: T[]): T {
+    return {
+      say: () => `foo: ${bar.length}`,
+    };
+  }
 
-//   bar.token = "bar" as const;
+  bar.token = "bar" as const;
 
-//   function bar(): T {
-//     return {
-//       say: () => "bar",
-//     };
-//   }
+  function bar(): T {
+    return {
+      say: () => "bar",
+    };
+  }
 
-//   qux.token = "qux" as const;
+  qux.token = "qux" as const;
 
-//   function qux(): T {
-//     return {
-//       say: () => "qux",
-//     };
-//   }
+  function qux(): T {
+    return {
+      say: () => "qux",
+    };
+  }
 
-//   baz1.dependsOn = ["foo", "bar"] as const;
-//   baz1.lazy = true as const;
-//   baz1.token = "baz" as const;
+  baz1.dependsOn = ["foo", "bar"] as const;
+  baz1.token = "baz" as const;
 
-//   function baz1(foo: () => T): T {
-//     return {
-//       say: foo().say,
-//     };
-//   }
+  function baz1(foo: () => T): T {
+    return {
+      say: () => {
+        return foo().say();
+      },
+    };
+  }
 
-//   baz2.dependsOn = ["foo", "qux"] as const;
-//   baz2.lazy = true as const;
-//   baz2.token = "baz" as const;
+  baz2.dependsOn = ["foo", "qux"] as const;
+  baz2.token = "baz" as const;
 
-//   function baz2(foo: () => T): T {
-//     return {
-//       say: foo().say,
-//     };
-//   }
+  function baz2(foo: () => T): T {
+    return {
+      say: () => {
+        return foo().say();
+      },
+    };
+  }
 
-//   const bars = createContainerDraft()
-//     .defineLazy(foo)
-//     .assign(qux)
-//     .assign(bar)
-//     .assignMany([baz1, baz2])
-//     .assign(foo)
-//     .seal()
-//     .resolve("baz");
+  const bars = createContainerDraft()
+    .defineLazy(foo)
+    .assign(qux)
+    .assign(bar)
+    .assignMany([baz1, baz2])
+    .assign(foo)
+    .seal()
+    .resolve("baz");
 
-//   bars.forEach(({ say }) => expect(say()).toMatch("foo"));
-// });
+  console.log(1234, bars);
+
+  bars.forEach(({ say }) => {
+    console.log(say());
+
+    expect(say()).toMatch("foo: 2");
+  });
+});
 
 // // a depends on b; both are in the same batch ⇒ error
 // test("assignMany forbids in-batch deps", () => {
