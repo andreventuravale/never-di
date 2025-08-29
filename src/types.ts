@@ -14,18 +14,24 @@ interface AssignApi<S = {}> {
     : IntraBatchError<Fs>;
 }
 
-interface Container<
+export interface Container<
   R extends Record<string, Factory | readonly Factory[]> = {}
 > {
   resolve<T extends keyof R>(token: T): ReturnOfRegValue<R[T]>;
+
+  bind<L extends Loader>(l: L): () => ReturnType<L>; 
 }
 
 interface DefineApi<S = {}> {
   defineLazy<F extends Factory>(f: F): Stage1<WithLazy<S, Tk<F>>>;
 }
 
-interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
+export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
   (...args: Args): T;
+}
+
+export interface Loader<Args extends any[] = any[]> extends Pick<Metadata, 'dependsOn'> {
+  (...args: Args): void;
 }
 
 interface Metadata {
@@ -34,9 +40,9 @@ interface Metadata {
   readonly token: string;
 }
 
-interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {}
+export interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {}
 
-interface Stage2<S = {}> extends AssignApi<S> {
+export interface Stage2<S = {}> extends AssignApi<S> {
   seal(): SealResult<S>;
 }
 
@@ -63,7 +69,7 @@ type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
       type: "error";
       message: "factory has dependencies that are not assigned";
       dependent: Tk<F>;
-      unsigned_dependencies: UncoveredDeps<Reg, F>;
+      unassigned_dependencies: UncoveredDeps<Reg, F>;
     };
 
 type DepKeys<F extends Metadata> = F extends {

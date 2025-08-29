@@ -1,8 +1,11 @@
+import type { Container, Factory, Loader, Stage1, Stage2 } from "./types";
 
 export function createContainerDraft(): Stage1 {
   const lazy = new Set<string>();
 
   const map = new Map<string, Factory | Factory[]>();
+
+  const cache = new Map<string, unknown>();
 
   return { assign, assignMany, defineLazy } as any;
 
@@ -49,32 +52,46 @@ export function createContainerDraft(): Stage1 {
       }
     }
 
-    return { resolve } as any;
+    return { bind, resolve } as any;
+  }
+
+  function bind<L extends Loader>(l: L): () => ReturnType<L> {
+    return () => _resolve(l) as ReturnType<L>;
   }
 
   function resolve<T>(token: string): T {
+    if (cache.has(token)) return cache.get(token) as T;
+
     const entry = map.get(token);
 
     if (!entry) {
       throw new Error(`token is not assigned: ${token}`);
     }
 
-    if (lazy.has(token)) {
-      if (Array.isArray(entry)) {
-        return (() => entry.map(_resolve)) as T;
-      }
+    const value = getValue(entry);
 
-      return (() => _resolve(entry)) as T;
-    } else {
-      if (Array.isArray(entry)) {
-        return entry.map(_resolve) as T;
-      }
+    cache.set(token, value);
 
-      return _resolve(entry) as T;
+    return value;
+
+    function getValue(entry: Factory | Factory[]) {
+      if (lazy.has(token)) {
+        if (Array.isArray(entry)) {
+          return (() => entry.map(_resolve)) as T;
+        }
+
+        return (() => _resolve(entry)) as T;
+      } else {
+        if (Array.isArray(entry)) {
+          return entry.map(_resolve) as T;
+        }
+
+        return _resolve(entry) as T;
+      }
     }
   }
 
-  function _resolve(factory: Factory): unknown {
+  function _resolve(factory: Factory | Loader): unknown {
     const { dependsOn = [] } = factory;
 
     const args = dependsOn.map(resolve);
