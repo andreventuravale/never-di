@@ -278,6 +278,12 @@ function createContainerDraft(): Stage1 {
   }
 
   function seal(): Container {
+    for (const key of lazy.keys()) {
+      if (!map.has(key)) {
+        throw new Error(`lazy factory is not unassigned: ${key}`);
+      }
+    }
+
     return { resolve } as any;
   }
 
@@ -347,7 +353,7 @@ test("poc", async () => {
       .seal()
       .resolve("bar")
       .say()
-  ).toMatch("foo");
+  ).toStrictEqual("foo");
 });
 
 test("many", async () => {
@@ -391,18 +397,18 @@ test("many", async () => {
     .resolve("bar");
 
   bars.forEach(({ say }) => {
-    expect(say()).toMatch("foo: 2");
+    expect(say()).toStrictEqual("foo: 2");
   });
 });
 
-test.only("many hetero deps", async () => {
-  foo.dependsOn = ["bar"] as const;
-  foo.lazy = true as const;
+test("many hetero deps", async () => {
   foo.token = "foo" as const;
+  foo.dependsOn = ["baz"] as const;
+  foo.lazy = true as const;
 
-  function foo(bar: T[]): T {
+  function foo(baz: T[]): T {
     return {
-      say: () => `foo: ${bar.length}`,
+      say: () => `foo: ${baz.length}`,
     };
   }
 
@@ -425,10 +431,10 @@ test.only("many hetero deps", async () => {
   baz1.dependsOn = ["foo", "bar"] as const;
   baz1.token = "baz" as const;
 
-  function baz1(foo: () => T): T {
+  function baz1(foo: () => T, bar: T): T {
     return {
       say: () => {
-        return foo().say();
+        return foo().say() + " " + bar.say();
       },
     };
   }
@@ -436,10 +442,10 @@ test.only("many hetero deps", async () => {
   baz2.dependsOn = ["foo", "qux"] as const;
   baz2.token = "baz" as const;
 
-  function baz2(foo: () => T): T {
+  function baz2(foo: () => T, qux: T): T {
     return {
       say: () => {
-        return foo().say();
+        return foo().say() + " " + qux.say();
       },
     };
   }
@@ -453,168 +459,173 @@ test.only("many hetero deps", async () => {
     .seal()
     .resolve("baz");
 
-  console.log(1234, bars);
+  expect(bars.length).toStrictEqual(2);
 
-  bars.forEach(({ say }) => {
-    console.log(say());
+  expect(bars[0].say()).toStrictEqual("foo: 2 bar");
 
-    expect(say()).toMatch("foo: 2");
-  });
+  expect(bars[1].say()).toStrictEqual("foo: 2 qux");
 });
 
-// // a depends on b; both are in the same batch ⇒ error
-// test("assignMany forbids in-batch deps", () => {
-//   function a(_: T): T {
-//     return { say: () => "a" };
-//   }
-//   a.dependsOn = ["b"] as const;
-//   a.token = "a" as const;
+// a depends on b; both are in the same batch ⇒ error
+test("assignMany forbids in-batch deps", () => {
+  function a(_: T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.token = "tk" as const;
 
-//   function b(): T {
-//     return { say: () => "b" };
-//   }
-//   b.token = "b" as const;
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "tk" as const;
 
-//   createContainerDraft()
-//     .assignMany([a, b])
-//     // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
-//     .seal();
+  createContainerDraft()
+    .assignMany([a, b])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
 
-//   createContainerDraft()
-//     .assignMany([b, a])
-//     // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
-//     .seal();
-// });
+  createContainerDraft()
+    .assignMany([b, a])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
+});
 
-// test("assignMany passes when deps are provided outside the batch", () => {
-//   function a(_: () => T): T {
-//     return { say: () => "a" };
-//   }
-//   a.dependsOn = ["b"] as const;
-//   a.lazy = true as const;
-//   a.token = "a" as const;
+test("assignMany passes when deps are provided outside the batch", () => {
+  function a(_: () => T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.lazy = true as const;
+  a.token = "a" as const;
 
-//   function b(): T {
-//     return { say: () => "b" };
-//   }
-//   b.token = "b" as const;
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "b" as const;
 
-//   createContainerDraft()
-//     .defineLazy(b) // dep provided *outside* the batch
-//     .assignMany([a]) // ok
-//     .assign(b) // or .assign later
-//     .seal();
-// });
+  createContainerDraft()
+    .defineLazy(b) // dep provided *outside* the batch
+    .assignMany([a]) // ok
+    .assign(b) // or .assign later
+    .seal();
+});
 
-// test("assignMany(strict) fails if a depends on b in the same batch", () => {
-//   type T = { say(): string };
+test("assignMany(strict) fails if a depends on b in the same batch", () => {
+  type T = { say(): string };
 
-//   function a(_: T): T {
-//     return { say: () => "a" };
-//   }
-//   a.dependsOn = ["b"] as const;
-//   a.token = "a" as const;
+  function a(_: T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.token = "tk" as const;
 
-//   function b(): T {
-//     return { say: () => "b" };
-//   }
-//   b.token = "b" as const;
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "tk" as const;
 
-//   // Fails due to your IntraBatchError (forbid in-batch deps)
-//   createContainerDraft()
-//     .assignMany([a, b])
-//     // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
-//     .seal();
+  // Fails due to your IntraBatchError (forbid in-batch deps)
+  createContainerDraft()
+    .assignMany([a, b])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
 
-//   // Order doesn’t help (still in-batch)
-//   createContainerDraft()
-//     .assignMany([b, a])
-//     // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
-//     .seal();
-// });
+  // Order doesn’t help (still in-batch)
+  createContainerDraft()
+    .assignMany([b, a])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "b"; }
+    .seal();
+});
 
-// test("assignMany passes when dep is outside the batch (lazy before)", () => {
-//   type T = { say(): string };
+test("assignMany passes when dep is outside the batch (lazy before)", () => {
+  type T = { say(): string };
 
-//   function a(_: () => T): T {
-//     return { say: () => "a" };
-//   }
-//   a.dependsOn = ["b"] as const;
-//   a.lazy = true as const;
-//   a.token = "a" as const;
+  function a(_: () => T): T {
+    return { say: () => "a" };
+  }
+  a.dependsOn = ["b"] as const;
+  a.lazy = true as const;
+  a.token = "a" as const;
 
-//   function b(): T {
-//     return { say: () => "b" };
-//   }
-//   b.token = "b" as const;
+  function b(): T {
+    return { say: () => "b" };
+  }
+  b.token = "b" as const;
 
-//   createContainerDraft()
-//     .defineLazy(b) // makes "b" acceptable for a
-//     .assignMany([a]) // ok (no in-batch deps)
-//     .assign(b) // later assignment
-//     .seal(); // ok
-// });
+  createContainerDraft()
+    .defineLazy(b) // makes "b" acceptable for a
+    .assignMany([a]) // ok (no in-batch deps)
+    .assign(b) // later assignment
+    .seal(); // ok
+});
 
-// test("seal fails when a lazy token is not assigned", () => {
-//   type T = { say(): string };
+test("seal fails when a lazy token is not assigned", () => {
+  type T = { say(): string };
 
-//   function x(): T {
-//     return { say: () => "x" };
-//   }
-//   x.token = "x" as const;
+  function x(): T {
+    return { say: () => "x" };
+  }
+  x.token = "x" as const;
 
-//   // Lazy declared but never assigned → your SealResult error
-//   expect(createContainerDraft().defineLazy(x).seal()).toMatchInlineSnapshot();
-// });
+  function y(): T {
+    return { say: () => "y" };
+  }
+  y.token = "y" as const;
 
-// test("same-token multi-bind ok (no self-deps), returns array", () => {
-//   type T = { say(): string };
+  // Lazy declared but never assigned → your SealResult error
+  expect(() => {
+    createContainerDraft().defineLazy(x).assign(y).seal();
+  }).toThrow("lazy factory is not unassigned: x");
+});
 
-//   function foo(): T {
-//     return { say: () => "foo" };
-//   }
-//   foo.token = "foo" as const;
+test("same-token multi-bind ok (no self-deps), returns array", () => {
+  type T = { say(): string };
 
-//   function bar1(_: T): T {
-//     return { say: () => "bar1" };
-//   }
-//   bar1.dependsOn = ["foo"] as const;
-//   bar1.lazy = true as const;
-//   bar1.token = "bar" as const;
+  function foo(): T {
+    return { say: () => "foo" };
+  }
+  foo.token = "foo" as const;
 
-//   function bar2(_: T): T {
-//     return { say: () => "bar2" };
-//   }
-//   bar2.dependsOn = ["foo"] as const;
-//   bar2.lazy = true as const;
-//   bar2.token = "bar" as const;
+  function bar1(_: T): T {
+    return { say: () => "bar1" };
+  }
+  bar1.dependsOn = ["foo"] as const;
+  bar1.lazy = true as const;
+  bar1.token = "bar" as const;
 
-//   const bars = createContainerDraft()
-//     .defineLazy(foo)
-//     .assignMany([bar1, bar2]) // same token, no self-dep on "bar" → OK
-//     .assign(foo)
-//     .seal()
-//     .resolve("bar");
+  function bar2(_: T): T {
+    return { say: () => "bar2" };
+  }
+  bar2.dependsOn = ["foo"] as const;
+  bar2.lazy = true as const;
+  bar2.token = "bar" as const;
 
-//   bars.forEach((b) => b.say()); // typed as ReturnType<typeof bar1 | typeof bar2>[]
-// });
+  const bars = createContainerDraft()
+    .defineLazy(foo)
+    .assignMany([bar1, bar2]) // same token, no self-dep on "bar" → OK
+    .assign(foo)
+    .seal()
+    .resolve("bar");
 
-// test("same-token batch is forbidden if any factory depends on the token itself", () => {
-//   type T = { say(): string };
+  bars.forEach((b) => b.say()); // typed as ReturnType<typeof bar1 | typeof bar2>[]
+});
 
-//   function bar1(_: T): T {
-//     return { say: () => "bar1" };
-//   }
-//   bar1.dependsOn = ["bar"] as const; // self/peer token
-//   bar1.token = "bar" as const;
+test("same-token batch is forbidden if any factory depends on the token itself", () => {
+  type T = { say(): string };
 
-//   function bar2(): T {
-//     return { say: () => "bar2" };
-//   }
-//   bar2.token = "bar" as const;
+  function bar1(_: T): T {
+    return { say: () => "bar1" };
+  }
+  bar1.dependsOn = ["bar"] as const; // self/peer token
+  bar1.token = "bar" as const;
 
-//   createContainerDraft()
-//     .assignMany([bar1, bar2])
-//     // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "bar" }
-//     .seal();
-// });
+  function bar2(): T {
+    return { say: () => "bar2" };
+  }
+  bar2.token = "bar" as const;
+
+  createContainerDraft()
+    .assignMany([bar1, bar2])
+    // @ts-expect-error { type: "error"; message: "assignMany forbids in-batch dependencies"; tokens: "bar" }
+    .seal();
+});
