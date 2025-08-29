@@ -181,7 +181,7 @@ type SealCheck<S> = [UnassignedLazy<S>] extends [never]
   : {
       type: "error";
       message: "one or more lazy factories remain unassigned";
-      unsigned_tokens: UnassignedLazy<S>;
+      unassigned_tokens: UnassignedLazy<S>;
     };
 
 // If SealCheck passes, return Container; else return the error shape
