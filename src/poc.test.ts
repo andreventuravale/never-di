@@ -211,16 +211,16 @@ function createContainerDraft(): Stage1 {
   }
 }
 
+type T = {
+  say(): string;
+};
+
 test("poc", async () => {
   foo.dependsOn = ["bar"] as const;
   foo.lazy = true as const;
   foo.token = "foo" as const;
 
-  type Foo = {
-    say(): string;
-  };
-
-  function foo(): Foo {
+  function foo(): T {
     return {
       say: () => "foo",
     };
@@ -230,11 +230,7 @@ test("poc", async () => {
   bar.lazy = true as const;
   bar.token = "bar" as const;
 
-  type Bar = {
-    say(): string;
-  };
-
-  function bar(foo: () => Foo): Bar {
+  function bar(foo: () => T): T {
     return {
       say: foo().say,
     };
@@ -252,29 +248,21 @@ test("poc", async () => {
 });
 
 test("many", async () => {
-  type Foo = {
-    say(): string;
-  };
-
   foo.dependsOn = ["bar"] as const;
   foo.lazy = true as const;
   foo.token = "foo" as const;
 
-  function foo(): Foo {
+  function foo(): T {
     return {
       say: () => "foo",
     };
   }
 
-  type Bar = {
-    say(): string;
-  };
-
   bar1.dependsOn = ["foo"] as const;
   bar1.lazy = true as const;
   bar1.token = "bar" as const;
 
-  function bar1(foo: () => Foo): Bar {
+  function bar1(foo: () => T): T {
     return {
       say: foo().say,
     };
@@ -284,11 +272,7 @@ test("many", async () => {
   bar2.lazy = true as const;
   bar2.token = "bar" as const;
 
-  type Baz = {
-    say(): string;
-  };
-
-  function bar2(foo: () => Foo): Baz {
+  function bar2(foo: () => T): T {
     return {
       say: foo().say,
     };
@@ -299,6 +283,64 @@ test("many", async () => {
     .assignMany([bar1, bar2])
     .seal()
     .resolve("bar");
+
+  bars.forEach(({ say }) => expect(say()).toMatch("foo"));
+});
+
+test("many hetero deps", async () => {
+  foo.dependsOn = ["bar"] as const;
+  foo.lazy = true as const;
+  foo.token = "foo" as const;
+
+  function foo(bar: T): T {
+    return {
+      say: bar.say,
+    };
+  }
+
+  bar.token = "bar" as const;
+
+  function bar(): T {
+    return {
+      say: () => "bar",
+    };
+  }
+
+  qux.token = "qux" as const;
+
+  function qux(): T {
+    return {
+      say: () => "qux",
+    };
+  }
+
+  baz1.dependsOn = ["foo", "bar"] as const;
+  baz1.lazy = true as const;
+  baz1.token = "baz" as const;
+
+  function baz1(foo: () => T): T {
+    return {
+      say: foo().say,
+    };
+  }
+
+  baz2.dependsOn = ["foo", "qux"] as const;
+  baz2.lazy = true as const;
+  baz2.token = "baz" as const;
+
+  function baz2(foo: () => T): T {
+    return {
+      say: foo().say,
+    };
+  }
+
+  const bars = createContainerDraft()
+    .defineLazy(foo)
+    .assign(qux)
+    .assign(bar)
+    .assignMany([baz1, baz2])
+    .seal()
+    .resolve("baz");
 
   bars.forEach(({ say }) => expect(say()).toMatch("foo"));
 });
