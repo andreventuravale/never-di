@@ -3,7 +3,7 @@ import { expect, test } from "vitest";
 interface Metadata {
   readonly dependsOn?: readonly string[];
   readonly lazy?: true;
-  readonly token?: string;
+  readonly token: string;
 }
 
 type WithLazy<S, Token> = S extends {
@@ -73,6 +73,17 @@ interface AssignApi<S = {}> {
   ): S extends Check<S, F>
     ? Stage3<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
     : Check<S, F>;
+
+  assignMany<F extends Factory[]>(
+    f: F
+  ): S extends Check<S, F[number]>
+    ? Stage3<
+        WithRegistry<
+          WithMeta<S, Record<Tk<F[number]>, F[number]>>,
+          Record<Tk<F[number]>, F[number]>
+        >
+      >
+    : Check<S, F[number]>;
 }
 
 interface Stage1<S = {}> extends DefineApi<S> {}
@@ -151,6 +162,59 @@ test("poc", async () => {
       .defineLazy(foo)
       .assign(bar)
       .assign(foo)
+      .seal()
+      .resolve("bar")
+      .say()
+  ).toMatch("foo");
+});
+
+test("many", async () => {
+  type Foo = {
+    say(): string;
+  };
+
+  foo.dependsOn = ["bar"] as const;
+  foo.lazy = true as const;
+  foo.token = "foo" as const;
+
+  function foo(): Foo {
+    return {
+      say: () => "foo",
+    };
+  }
+
+  type Bar = {
+    say(): string;
+  };
+
+  bar1.dependsOn = ["foo"] as const;
+  bar1.lazy = true as const;
+  bar1.token = "bar" as const;
+
+  function bar1(foo: () => Foo): Bar {
+    return {
+      say: foo().say,
+    };
+  }
+
+  bar2.dependsOn = ["foo"] as const;
+  bar2.lazy = true as const;
+  bar2.token = "bar" as const;
+
+  type Baz = {
+    say(): string;
+  };
+
+  function bar2(foo: () => Foo): Baz {
+    return {
+      say: foo().say,
+    };
+  }
+
+  expect(
+    createContainerDraft()
+      .defineLazy(foo)
+      .assignMany([bar1, bar2])
       .seal()
       .resolve("bar")
       .say()
