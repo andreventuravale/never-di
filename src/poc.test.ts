@@ -239,6 +239,8 @@ interface Container<
 }
 
 function createContainerDraft(): Stage1 {
+  const map = new Map<string, Factory | Factory[]>();
+
   return {
     assign,
     assignMany,
@@ -254,6 +256,8 @@ function createContainerDraft(): Stage1 {
   }
 
   function assign(f: Factory): Stage2 {
+    map.set(f.token, f);
+
     return {
       assign,
       assignMany,
@@ -262,6 +266,8 @@ function createContainerDraft(): Stage1 {
   }
 
   function assignMany(f: Factory): Stage2 {
+    map.set(f.token, f);
+
     return {
       assign,
       assignMany,
@@ -276,7 +282,25 @@ function createContainerDraft(): Stage1 {
   }
 
   function resolve<T>(token: string): T {
-    return undefined as T;
+    const entry = map.get(token);
+
+    if (!entry) {
+      throw new Error(`token is not assigned: ${token}`);
+    }
+
+    if (Array.isArray(entry)) {
+      return entry.map(_resolve) as T;
+    }
+
+    return _resolve(entry) as T;
+  }
+
+  function _resolve(factory: Factory): unknown {
+    const { dependsOn = [] } = factory;
+
+    const args = dependsOn.map(resolve);
+
+    return factory.apply(undefined, args);
   }
 }
 
