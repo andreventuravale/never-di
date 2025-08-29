@@ -6,33 +6,23 @@ interface Metadata {
   readonly token?: string;
 }
 
-interface State<
-  L extends string,
-  M extends Record<string, Metadata>,
-  R extends Record<string, Factory>
-> {
-  lazy: L;
-  meta: M;
-  reg: R;
-}
-
 type WithLazy<S, Token> = S extends {
-  __lazy__: infer Prev;
+  lazy: infer Prev;
 }
-  ? Omit<S, "__lazy__"> & { __lazy__: Prev | Token }
-  : Omit<S, "__lazy__"> & { __lazy__: Token };
+  ? S & { lazy: Prev | Token }
+  : S & { lazy: Token };
 
 type WithMeta<S, Meta> = S extends {
-  __meta__: infer Prev;
+  meta: infer Prev;
 }
-  ? Omit<S, "__meta__"> & { __meta__: Prev & Meta }
-  : Omit<S, "__meta__"> & { __meta__: Meta };
+  ? S & { meta: Prev & Meta }
+  : S & { meta: Meta };
 
 type WithRegistry<S, F extends Record<string, Factory>> = S extends {
-  __reg__: infer Prev extends Record<string, Factory>;
+  reg: infer Prev extends Record<string, Factory>;
 }
-  ? Omit<S, "__reg__"> & { __reg__: Prev & F }
-  : Omit<S, "__reg__"> & { __reg__: F };
+  ? S & { reg: Prev & F }
+  : S & { reg: F };
 
 type Tk<M extends Metadata> = M extends { token: infer Tk extends string }
   ? Tk
@@ -48,9 +38,9 @@ interface DefineApi<S = {}> {
 
 //--------------------
 
-type Meta<Reg> = Reg extends { __meta__: infer M } ? M : {};
+type Meta<Reg> = Reg extends { meta: infer M } ? M : {};
 
-type LazyKeys<Reg> = Reg extends { __lazy__: infer L }
+type LazyKeys<Reg> = Reg extends { lazy: infer L }
   ? L extends string
     ? L
     : never
@@ -71,7 +61,7 @@ type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
   ? Reg
   : { [k in Tk<F>]: { depends: { on: UncoveredDeps<Reg, F> } } };
 
-type Reg<S> = S extends { __reg__: infer R extends Record<string, Factory> }
+type Reg<S> = S extends { reg: infer R extends Record<string, Factory> }
   ? R
   : never;
 
