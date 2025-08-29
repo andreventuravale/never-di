@@ -239,46 +239,32 @@ interface Container<
 }
 
 function createContainerDraft(): Stage1 {
+  const lazy = new Set<string>();
+
   const map = new Map<string, Factory | Factory[]>();
 
-  return {
-    assign,
-    assignMany,
-    defineLazy,
-  } as any;
+  return { assign, assignMany, defineLazy } as any;
 
   function defineLazy(f: Factory): Stage2 {
-    return {
-      assign,
-      assignMany,
-      defineLazy,
-    } as any;
+    lazy.add(f.token);
+
+    return { assign, assignMany, defineLazy } as any;
   }
 
   function assign(f: Factory): Stage2 {
     map.set(f.token, f);
 
-    return {
-      assign,
-      assignMany,
-      seal,
-    } as any;
+    return { assign, assignMany, seal } as any;
   }
 
   function assignMany(f: Factory): Stage2 {
     map.set(f.token, f);
 
-    return {
-      assign,
-      assignMany,
-      seal,
-    } as any;
+    return { assign, assignMany, seal } as any;
   }
 
   function seal(): Container {
-    return {
-      resolve,
-    } as any;
+    return { resolve } as any;
   }
 
   function resolve<T>(token: string): T {
