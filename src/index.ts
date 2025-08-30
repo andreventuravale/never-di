@@ -1,5 +1,7 @@
 import type { Container, Factory, Loader, Stage1, Stage2 } from "./types";
 
+export * from "./types";
+
 export function createContainerDraft(): Stage1 {
   const lazy = new Set<string>();
 
