@@ -15,11 +15,12 @@ interface AssignApi<S = {}> {
 }
 
 export interface Container<
-  R extends Record<string, Factory | readonly Factory[]> = {}
+  R extends Record<string, Factory | readonly Factory[]> = {},
+  Lz extends string = never
 > {
-  resolve<T extends keyof R>(token: T): ReturnOfRegValue<R[T]>;
+  resolve<T extends keyof R & string>(token: T): Type<R, Lz, T>;
 
-  bind<L extends Loader>(l: L): () => ReturnType<L>; 
+  bind<L extends Loader>(l: L): () => ReturnType<L>;
 }
 
 interface DefineApi<S = {}> {
@@ -30,7 +31,8 @@ export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
   (...args: Args): T;
 }
 
-export interface Loader<Args extends any[] = any[]> extends Pick<Metadata, 'dependsOn'> {
+export interface Loader<Args extends any[] = any[]>
+  extends Pick<Metadata, "dependsOn"> {
   (...args: Args): void;
 }
 
@@ -63,13 +65,13 @@ type AllTokensEqual<
 
 type AssignedKeys<S> = keyof Meta<S> & string;
 
-type Check<Reg, F extends Metadata> = [UncoveredDeps<Reg, F>] extends [never]
-  ? Reg
+type Check<S, F extends Metadata> = [UncoveredDeps<S, F>] extends [never]
+  ? S
   : {
       type: "error";
       message: "factory has dependencies that are not assigned";
       dependent: Tk<F>;
-      unassigned_dependencies: UncoveredDeps<Reg, F>;
+      unassigned_dependencies: UncoveredDeps<S, F>;
     };
 
 type DepKeys<F extends Metadata> = F extends {
@@ -105,19 +107,13 @@ type IntraBatchError<Fs extends readonly Factory[]> =
         tokens: IntraBatchDeps<Fs>;
       };
 
-type LazyKeys<Reg> = Reg extends { lazy: infer L }
+type Lazy<S> = S extends { lazy: infer L }
   ? L extends string
     ? L
     : never
   : never;
 
-type LazyKeysOf<S> = S extends { lazy: infer L }
-  ? L extends string
-    ? L
-    : never
-  : never;
-
-type Meta<Reg> = Reg extends { meta: infer M } ? M : {};
+type Meta<S> = S extends { meta: infer M } ? M : {};
 
 type Reg<S> = S extends {
   reg: infer R extends Record<string, Factory | readonly Factory[]>;
@@ -125,11 +121,22 @@ type Reg<S> = S extends {
   ? R
   : never;
 
-type ReturnOfRegValue<V> = V extends readonly Factory[]
-  ? ReturnType<V[number]>[]
-  : V extends Factory
-  ? ReturnType<V>
-  : never;
+type Type<
+  R extends Record<string, Factory | readonly Factory[]>,
+  Lz extends string,
+  T extends keyof R
+> =
+  // If R[T] is an array of factories → plain array of returns (never lazy)
+  R[T] extends readonly (infer AF)[]
+    ? AF extends Factory
+      ? ReturnType<AF>[]
+      : never
+    : // Else, if R[T] is a single factory → thunk iff token is lazy
+    R[T] extends Factory
+    ? [T] extends [Lz]
+      ? () => ReturnType<R[T]>
+      : ReturnType<R[T]>
+    : never;
 
 type SameTokenKey<Fs extends readonly Factory[]> = Fs extends readonly [
   infer H extends Factory,
@@ -148,7 +155,7 @@ type SealCheck<S> = [UnassignedLazy<S>] extends [never]
       unassigned_tokens: UnassignedLazy<S>;
     };
 
-type SealResult<S> = SealCheck<S> extends S ? Container<Reg<S>> : SealCheck<S>;
+type SealResult<S> = SealCheck<S> extends S ? Container<Reg<S>, Lazy<S>> : SealCheck<S>;
 
 type Tail<T extends readonly unknown[]> = T extends readonly [
   unknown,
@@ -165,11 +172,11 @@ type TokenOf<F extends Factory> = NonNullable<F["token"]>;
 
 type TokensOf<Fs extends readonly Factory[]> = TokenOf<Fs[number]>;
 
-type UnassignedLazy<S> = Exclude<LazyKeysOf<S>, AssignedKeys<S>>;
+type UnassignedLazy<S> = Exclude<Lazy<S>, AssignedKeys<S>>;
 
-type UncoveredDeps<Reg, F extends Metadata> = Exclude<
+type UncoveredDeps<S, F extends Metadata> = Exclude<
   DepKeys<F>,
-  keyof Meta<Reg> | LazyKeys<Reg>
+  keyof Meta<S> | Lazy<S>
 >;
 
 type WithLazy<S, Token> = S extends {
