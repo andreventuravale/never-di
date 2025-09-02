@@ -1,4 +1,4 @@
-import type { Container, Factory, Loader, Stage1, Stage2 } from "./types";
+import type { Container, Factory, Procedure, Stage1, Stage2 } from "./types";
 
 export * from "./types";
 
@@ -57,7 +57,7 @@ export function createContainerDraft(): Stage1 {
     return { bind, resolve } as any;
   }
 
-  function bind<L extends Loader>(l: L): () => ReturnType<L> {
+  function bind<L extends Procedure>(l: L): () => ReturnType<L> {
     return () => _resolve(l) as ReturnType<L>;
   }
 
@@ -93,7 +93,7 @@ export function createContainerDraft(): Stage1 {
     }
   }
 
-  function _resolve(factory: Factory | Loader): unknown {
+  function _resolve(factory: Factory | Procedure): unknown {
     const { dependsOn = [] } = factory;
 
     const args = dependsOn.map(resolve);

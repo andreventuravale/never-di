@@ -1,26 +1,31 @@
 interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
-  ): S extends Check<S, F>
+  ): S extends CheckFactory<S, F>
     ? Stage2<WithRegistry<WithMeta<S, Record<Tk<F>, F>>, Record<Tk<F>, F>>>
-    : Check<S, F>;
+    : CheckFactory<S, F>;
 
   assignMany<const Fs extends readonly [Factory, ...Factory[]]>(
     fs: readonly [...Fs]
   ): IntraBatchError<Fs> extends never
-    ? S extends Check<S, Fs[number]>
+    ? S extends CheckFactory<S, Fs[number]>
       ? Stage2<WithRegistryManyTuple<WithMetaManyTuple<S, Fs>, Fs>>
-      : Check<S, Fs[number]>
+      : CheckFactory<S, Fs[number]>
     : IntraBatchError<Fs>;
 }
 
 export interface Container<
+  S = {},
   R extends Record<string, Factory | readonly Factory[]> = {},
   Lz extends string = never
 > {
-  resolve<T extends keyof R & string>(token: T): Type<R, Lz, T>;
+  bind<P extends Procedure>(
+    p: P
+  ): S extends CheckProcedure<S, P>
+    ? () => ReturnType<P>
+    : CheckProcedure<S, P>;
 
-  bind<L extends Loader>(l: L): () => ReturnType<L>;
+  resolve<T extends keyof R & string>(token: T): Type<R, Lz, T>;
 }
 
 interface DefineApi<S = {}> {
@@ -31,7 +36,7 @@ export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
   (...args: Args): T;
 }
 
-export interface Loader<Args extends any[] = any[]>
+export interface Procedure<Args extends any[] = any[]>
   extends Pick<Metadata, "dependsOn"> {
   (...args: Args): void;
 }
@@ -65,7 +70,7 @@ type AllTokensEqual<
 
 type AssignedKeys<S> = keyof Meta<S> & string;
 
-type Check<S, F extends Metadata> = [UncoveredDeps<S, F>] extends [never]
+type CheckFactory<S, F extends Factory> = [UncoveredDeps<S, F>] extends [never]
   ? S
   : {
       type: "error";
@@ -74,7 +79,17 @@ type Check<S, F extends Metadata> = [UncoveredDeps<S, F>] extends [never]
       unassigned_dependencies: UncoveredDeps<S, F>;
     };
 
-type DepKeys<F extends Metadata> = F extends {
+type CheckProcedure<S, F extends Pick<Metadata, "dependsOn">> = [
+  UncoveredDeps<S, F>
+] extends [never]
+  ? S
+  : {
+      type: "error";
+      message: "procedure has dependencies that are not assigned";
+      unassigned_dependencies: UncoveredDeps<S, F>;
+    };
+
+type DepKeys<F extends Pick<Metadata, "dependsOn">> = F extends {
   dependsOn: infer D extends readonly string[];
 }
   ? D[number]
@@ -155,7 +170,9 @@ type SealCheck<S> = [UnassignedLazy<S>] extends [never]
       unassigned_tokens: UnassignedLazy<S>;
     };
 
-type SealResult<S> = SealCheck<S> extends S ? Container<Reg<S>, Lazy<S>> : SealCheck<S>;
+type SealResult<S> = SealCheck<S> extends S
+  ? Container<S, Reg<S>, Lazy<S>>
+  : SealCheck<S>;
 
 type Tail<T extends readonly unknown[]> = T extends readonly [
   unknown,
@@ -174,7 +191,7 @@ type TokensOf<Fs extends readonly Factory[]> = TokenOf<Fs[number]>;
 
 type UnassignedLazy<S> = Exclude<Lazy<S>, AssignedKeys<S>>;
 
-type UncoveredDeps<S, F extends Metadata> = Exclude<
+type UncoveredDeps<S, F extends Pick<Metadata, "dependsOn">> = Exclude<
   DepKeys<F>,
   keyof Meta<S> | Lazy<S>
 >;
