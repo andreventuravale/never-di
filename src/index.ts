@@ -78,11 +78,22 @@ export function createContainerDraft(): Stage1 {
 
     function getValue(entry: Factory | Factory[]) {
       if (lazy.has(token)) {
-        if (Array.isArray(entry)) {
-          return (() => entry.map(_resolve)) as T;
-        }
+        const key = `${token}:value`;
 
-        return (() => _resolve(entry)) as T;
+        return (() => {
+          if (cache.has(key)) return cache.get(key) as T;
+
+          const value = _resolve(entry as Factory);
+
+          cache.set(key, value);
+
+          console.log({
+            key,
+            value,
+          });
+
+          return value;
+        }) as T;
       } else {
         if (Array.isArray(entry)) {
           return entry.map(_resolve) as T;

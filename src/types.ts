@@ -15,9 +15,9 @@ interface AssignApi<S = {}> {
 }
 
 export interface Container<
-  S = {},
-  R extends Record<string, Factory | readonly Factory[]> = {},
-  Lz extends string = never
+  S = any,
+  R extends Record<string, Factory | readonly Factory[]> = any,
+  Lz extends string = any
 > {
   bind<P extends Procedure>(
     p: P
