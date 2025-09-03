@@ -87,11 +87,6 @@ export function createContainerDraft(): Stage1 {
 
           cache.set(key, value);
 
-          console.log({
-            key,
-            value,
-          });
-
           return value;
         }) as T;
       } else {
