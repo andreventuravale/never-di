@@ -1,3 +1,18 @@
+export type RegistryOf<C> = C extends Container<
+  any,
+  infer R extends Record<string, Factory | readonly Factory[]>,
+  any
+>
+  ? {
+      [K in keyof R &
+        string]: R[K] extends readonly (infer AF extends Factory)[]
+        ? ReturnType<AF>
+        : R[K] extends Factory
+        ? ReturnType<R[K]>
+        : never;
+    }
+  : never;
+
 interface AssignApi<S = {}> {
   assign<F extends Factory>(
     f: F
