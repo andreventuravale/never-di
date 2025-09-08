@@ -1,14 +1,18 @@
 export type RegistryOf<C> = C extends Container<
   any,
   infer R extends Record<string, Factory | readonly Factory[]>,
-  any
+  infer Lz extends string
 >
   ? {
       [K in keyof R &
-        string]: R[K] extends readonly (infer AF extends Factory)[]
+        string]: // multi-bind → never lazy; collapse to the factory's return type
+      R[K] extends readonly (infer AF extends Factory)[]
         ? ReturnType<AF>
-        : R[K] extends Factory
-        ? ReturnType<R[K]>
+        : // single factory → thunk iff the token K is in the lazy set
+        R[K] extends Factory
+        ? [K] extends [Lz]
+          ? () => ReturnType<R[K]>
+          : ReturnType<R[K]>
         : never;
     }
   : never;
