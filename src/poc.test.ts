@@ -270,14 +270,14 @@ test("same-token multi-bind ok (no self-deps), returns array", () => {
   }
   foo.token = "foo" as const;
 
-  function bar1(_: T): T {
+  function bar1(_: () => T): T {
     return { say: () => "bar1" };
   }
   bar1.dependsOn = ["foo"] as const;
   bar1.lazy = true as const;
   bar1.token = "bar" as const;
 
-  function bar2(_: T): T {
+  function bar2(_: () => T): T {
     return { say: () => "bar2" };
   }
   bar2.dependsOn = ["foo"] as const;

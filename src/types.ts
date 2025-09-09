@@ -5,8 +5,7 @@ export type RegistryOf<C> = C extends Container<
 >
   ? {
       [K in keyof R &
-        string]: // multi-bind → never lazy; collapse to the factory's return type
-      R[K] extends readonly (infer AF extends Factory)[]
+        string]: R[K] extends readonly (infer AF extends Factory)[] // multi-bind → never lazy; collapse to the factory's return type
         ? ReturnType<AF>
         : // single factory → thunk iff the token K is in the lazy set
         R[K] extends Factory
@@ -89,8 +88,52 @@ type AllTokensEqual<
 
 type AssignedKeys<S> = keyof Meta<S> & string;
 
+type Depends<F extends Pick<Metadata, "dependsOn">> = F extends {
+  dependsOn: infer D extends readonly string[];
+}
+  ? D
+  : readonly [];
+
+type ParamForToken<S, K extends string> = K extends keyof Reg<S>
+  ? Reg<S>[K] extends readonly (infer AF extends Factory)[]
+    ? ReturnType<AF>[]
+    : Reg<S>[K] extends Factory
+    ? [K] extends [Lazy<S>]
+      ? () => ReturnType<Reg<S>[K]>
+      : ReturnType<Reg<S>[K]>
+    : never
+  : [K] extends [Lazy<S>]
+  ? () => unknown
+  : never;
+
+type ExpectedArgs<S, D extends readonly string[]> = D extends readonly [
+  infer K extends string,
+  ...infer R extends readonly string[]
+]
+  ? [ParamForToken<S, K>, ...ExpectedArgs<S, R>]
+  : [];
+
+type ParamListCheck<S, F extends Factory> = Parameters<F> extends ExpectedArgs<
+  S,
+  Depends<F>
+>
+  ? ExpectedArgs<S, Depends<F>> extends Parameters<F>
+    ? S
+    : {
+        type: "error";
+        message: "dependencies type mismatch (lazy ones must be thunks)";
+        dependent: Tk<F>;
+        dependencies: Depends<F>;
+      }
+  : {
+      type: "error";
+      message: "dependencies type mismatch (lazy ones must be thunks)";
+      dependent: Tk<F>;
+      dependencies: Depends<F>;
+    };
+
 type CheckFactory<S, F extends Factory> = [UncoveredDeps<S, F>] extends [never]
-  ? S
+  ? ParamListCheck<S, F>
   : {
       type: "error";
       message: "factory has dependencies that are not assigned";
