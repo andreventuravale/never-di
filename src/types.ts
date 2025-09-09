@@ -106,23 +106,18 @@ type Depends<F extends Pick<Metadata, "dependsOn">> = F extends {
   : readonly [];
 
 type ParamForToken<S, K extends string, R = Reg<S>> = K extends keyof R
-  ? Reg<S>[K] extends readonly (infer AF extends Factory)[]
-    ? AF extends Factory
-      ? ReturnType<AF>[]
-      : never
+  ? Reg<S>[K] extends readonly Factory[]
+    ? any[]
     : Reg<S>[K] extends Factory
     ? [K] extends [Lazy<S>]
       ? () => ReturnType<Reg<S>[K]>
-      : ReturnType<Reg<S>[K]>
+      : any
     : never
   : never;
 
-type ExpectedArgs<S, D extends readonly string[]> = D extends readonly [
-  infer K extends string,
-  ...infer R extends readonly string[]
-]
-  ? [ParamForToken<S, K>, ...ExpectedArgs<S, R>]
-  : [];
+export type ExpectedArgs<S, D extends readonly string[]> = {
+  -readonly [I in keyof D]: ParamForToken<S, Extract<D[I], string>>;
+};
 
 type ParamListCheck<S, F extends Factory> = Parameters<F> extends ExpectedArgs<
   S,
