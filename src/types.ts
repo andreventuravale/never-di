@@ -47,7 +47,14 @@ export interface Container<
 }
 
 interface DefineApi<S = {}> {
-  defineLazy<F extends Factory>(f: F): Stage1<WithLazy<S, Tk<F>>>;
+  defineLazy<F extends Factory>(
+    f: F
+  ): Stage1<
+    WithRegistry<
+      WithMeta<WithLazy<S, Tk<F>>, Record<Tk<F>, F>>,
+      Record<Tk<F>, F>
+    >
+  >;
 }
 
 export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
@@ -65,9 +72,13 @@ interface Metadata {
   readonly token: string;
 }
 
-export interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {}
+export interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {
+  readonly state: S;
+}
 
 export interface Stage2<S = {}> extends AssignApi<S> {
+  readonly state: S;
+
   seal(): SealResult<S>;
 }
 
@@ -94,16 +105,16 @@ type Depends<F extends Pick<Metadata, "dependsOn">> = F extends {
   ? D
   : readonly [];
 
-type ParamForToken<S, K extends string> = K extends keyof Reg<S>
+type ParamForToken<S, K extends string, R = Reg<S>> = K extends keyof R
   ? Reg<S>[K] extends readonly (infer AF extends Factory)[]
-    ? ReturnType<AF>[]
+    ? AF extends Factory
+      ? ReturnType<AF>[]
+      : never
     : Reg<S>[K] extends Factory
     ? [K] extends [Lazy<S>]
       ? () => ReturnType<Reg<S>[K]>
       : ReturnType<Reg<S>[K]>
     : never
-  : [K] extends [Lazy<S>]
-  ? () => unknown
   : never;
 
 type ExpectedArgs<S, D extends readonly string[]> = D extends readonly [
@@ -204,7 +215,7 @@ type Type<
   T extends keyof R
 > =
   // If R[T] is an array of factories → plain array of returns (never lazy)
-  R[T] extends readonly (infer AF)[]
+  R[T] extends readonly (infer AF extends Factory)[]
     ? AF extends Factory
       ? ReturnType<AF>[]
       : never
