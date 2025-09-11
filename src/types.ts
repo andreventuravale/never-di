@@ -37,11 +37,11 @@ export interface Container<
   R extends Record<string, Factory | readonly Factory[]> = any,
   Lz extends string = any
 > {
-  bind<P extends Procedure>(
-    p: P
-  ): S extends CheckProcedure<S, P>
-    ? () => ReturnType<P>
-    : CheckProcedure<S, P>;
+  bind<F extends Factory>(
+    f: F
+  ): S extends CheckProcedure<S, F>
+    ? () => ReturnType<F>
+    : CheckProcedure<S, F>;
 
   resolve<T extends keyof R & string>(token: T): Type<R, Lz, T>;
 }
@@ -61,15 +61,10 @@ export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
   (...args: Args): T;
 }
 
-export interface Procedure<Args extends any[] = any[]>
-  extends Pick<Metadata, "dependsOn"> {
-  (...args: Args): void;
-}
-
 interface Metadata {
   readonly dependsOn?: readonly string[];
   readonly lazy?: true;
-  readonly token: string;
+  readonly token?: string;
 }
 
 export interface Stage1<S = {}> extends DefineApi<S>, AssignApi<S> {
@@ -111,7 +106,7 @@ type ParamForToken<S, K extends string, R = Reg<S>> = K extends keyof R
     : Reg<S>[K] extends Factory
     ? [K] extends [Lazy<S>]
       ? () => ReturnType<Reg<S>[K]>
-      : any
+      : ReturnType<Reg<S>[K]>
     : never
   : never;
 
@@ -147,10 +142,8 @@ type CheckFactory<S, F extends Factory> = [UncoveredDeps<S, F>] extends [never]
       unassigned_dependencies: UncoveredDeps<S, F>;
     };
 
-type CheckProcedure<S, F extends Pick<Metadata, "dependsOn">> = [
-  UncoveredDeps<S, F>
-] extends [never]
-  ? S
+type CheckProcedure<S, F extends Factory> = [UncoveredDeps<S, F>] extends [never]
+  ? ParamListCheck<S, F>
   : {
       type: "error";
       message: "procedure has dependencies that are not assigned";

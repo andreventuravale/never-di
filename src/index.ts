@@ -1,4 +1,4 @@
-import type { Container, Factory, Procedure, Stage1, Stage2 } from "./types";
+import type { Container, Factory, Stage1, Stage2 } from "./types";
 
 export * from "./types";
 
@@ -12,12 +12,16 @@ export function createContainerDraft(): Stage1 {
   return { assign, assignMany, defineLazy } as any;
 
   function defineLazy(f: Factory): Stage2 {
+    if (!f.token) throw new Error("defineLazy requires a token");
+
     lazy.add(f.token);
 
     return { assign, assignMany, defineLazy } as any;
   }
 
   function assign(f: Factory): Stage2 {
+    if (!f.token) throw new Error("assign requires a token");
+
     map.set(f.token, f);
 
     return { assign, assignMany, seal } as any;
@@ -29,10 +33,14 @@ export function createContainerDraft(): Stage1 {
     }
 
     const tokens = f.reduce((set, factory) => {
-      set.add(factory.token);
+      if (factory.token) set.add(factory.token);
 
       return set;
     }, new Set<string>());
+
+    if (tokens.size === 0) {
+      throw new Error("assignMany requires a token");
+    }
 
     if (tokens.size > 1) {
       throw new Error(
@@ -42,7 +50,7 @@ export function createContainerDraft(): Stage1 {
       );
     }
 
-    map.set(f[0].token, f);
+    map.set(f[0].token!, f);
 
     return { assign, assignMany, seal } as any;
   }
@@ -57,8 +65,8 @@ export function createContainerDraft(): Stage1 {
     return { bind, resolve } as any;
   }
 
-  function bind<L extends Procedure>(l: L): () => ReturnType<L> {
-    return () => _resolve(l) as ReturnType<L>;
+  function bind<F extends Factory>(f: F): () => ReturnType<F> {
+    return () => _resolve(f) as ReturnType<F>;
   }
 
   function resolve<T>(token: string): T {
@@ -99,7 +107,7 @@ export function createContainerDraft(): Stage1 {
     }
   }
 
-  function _resolve(factory: Factory | Procedure): unknown {
+  function _resolve(factory: Factory): unknown {
     const { dependsOn = [] } = factory;
 
     const args = dependsOn.map(resolve);
