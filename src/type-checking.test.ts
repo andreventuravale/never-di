@@ -2,10 +2,7 @@ import { expect, test } from "vitest";
 
 import { typecheck } from "./typecheck";
 
-//
-// 1) resolve requires a known token
-//
-test.only("resolve requires known token", async () => {
+test("resolve requires known token", async () => {
   const result = await typecheck({
     "case.ts": `
       import { createContainerDraft } from ".";
@@ -14,6 +11,7 @@ test.only("resolve requires known token", async () => {
       function Foo() { return 1; }
 
       const c = createContainerDraft().assign(Foo).seal();
+
       c.resolve("Nope");
     `,
   });
@@ -24,10 +22,7 @@ test.only("resolve requires known token", async () => {
   );
 });
 
-//
-// 2) resolve result type flows (number → string API misuse)
-//
-test.only("resolve result type flows (misuse as string)", async () => {
+test("resolve result type flows (misuse as string)", async () => {
   const result = await typecheck({
     "case.ts": `
       import { createContainerDraft } from ".";
@@ -36,8 +31,10 @@ test.only("resolve result type flows (misuse as string)", async () => {
       function Foo() { return 123; }
 
       const c = createContainerDraft().assign(Foo).seal();
+
       const x = c.resolve("IFoo"); // number
-      x.toUpperCase();             // misuse
+
+      x.toUpperCase(); // misuse
     `,
   });
 
@@ -47,10 +44,7 @@ test.only("resolve result type flows (misuse as string)", async () => {
   );
 });
 
-//
-// 3) bind rejects wrong dep parameter type
-//
-test.only("bind rejects wrong dep type", async () => {
+test("bind rejects wrong dep type", async () => {
   const result = await typecheck({
     "case.ts": `
       import { createContainerDraft } from ".";
@@ -71,16 +65,16 @@ test.only("bind rejects wrong dep type", async () => {
   expect(result).toReportError(
     2349,
     `
-      Type '{ type: "error"; message: "dependencies type mismatch (lazy ones must be thunks)";
-      dependent: "IUseFoo";
-      dependencies: readonly ["IFoo"]; }' has no call signatures.
+      Type '{
+        type: "error";
+        message: "dependencies type mismatch (lazy ones must be thunks)";
+        dependent: "IUseFoo";
+        dependencies: readonly ["IFoo"];
+      }' has no call signatures.
     `
   );
 });
 
-//
-// 4) bind detects tuple order/type mismatch
-//
 test("bind detects tuple arg mismatch", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -97,22 +91,27 @@ test("bind detects tuple arg mismatch", async () => {
         .assign(Bar)
         .seal();
 
-      Use.dependsOn = ["IFoo","IBar"] as const; // expected [number, string]
+      Use.dependsOn = ["IFoo", "IBar"] as const; // expected [number, string]
       function Use(foo: string, bar: number) { return foo + bar; }
 
-      c.bind(Use);
+      c.bind(Use)();
     `,
   });
 
   expect(result).toReportError(
-    2345,
-    `Types of parameters 'foo' and 'args_0' are incompatible`
+    2349,
+    `
+      This expression is not callable.
+      Type '{
+        type: "error";
+        message: "dependencies type mismatch (lazy ones must be thunks)";
+        dependent: never;
+        dependencies: readonly ["IFoo", "IBar"];
+      }' has no call signatures.
+    `
   );
 });
 
-//
-// 5) bind unknown token in dependsOn
-//
 test("bind unknown token in dependsOn", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -126,20 +125,23 @@ test("bind unknown token in dependsOn", async () => {
       Use.dependsOn = ["Nope"] as const;
       function Use(nope: number) { return nope + 1; }
 
-      c.bind(Use);
+      c.bind(Use)();
     `,
   });
 
   expect(result).toReportError(
-    2345,
-    `Type '"Nope"' is not assignable to type '"IFoo"'`
+    2349,
+    `
+      This expression is not callable.
+      Type '{
+        type: "error";
+        message: "procedure has dependencies that are not assigned";
+        unassigned_dependencies: "Nope";
+      }' has no call signatures.
+    `
   );
 });
 
-//
-// 6) assign requires eager deps to be already assigned
-//    (surface the error by chaining .seal() on the error-typed result)
-//
 test("assign requires eager deps to be already assigned", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -165,9 +167,6 @@ test("assign requires eager deps to be already assigned", async () => {
   );
 });
 
-//
-// 7) bind with lazy dependency requires thunk parameter
-//
 test("bind with lazy dependency requires thunk parameter", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -182,21 +181,23 @@ test("bind with lazy dependency requires thunk parameter", async () => {
         .seal();
 
       Use.dependsOn = ["IFoo"] as const;
-      function Use(a: number) { return a + 1; }
+      function Use(foo: number) { return foo + 1; }
 
-      c.bind(Use); // should be '() => number' but got 'number'
+      c.bind(Use)(); // should be '() => number' but got 'number'
     `,
   });
 
   expect(result).toReportError(
-    2345,
-    `Types of parameters 'a' and 'args_0' are incompatible`
+    2349,
+    `
+      This expression is not callable.
+      Type '{ type: "error"; message: "dependencies type mismatch (lazy ones must be thunks)"; dependent: never; dependencies: readonly ["IFoo"]; }' has no call signatures.
+    `
   );
 });
 
-//
-// 8) resolve of a lazy token returns a thunk (misused as value)
-//
+// TODO: defineLazy should enforce that the factory has a .lazy = true as const property
+
 test("resolve of lazy token returns a thunk (misused as value)", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -217,13 +218,10 @@ test("resolve of lazy token returns a thunk (misused as value)", async () => {
 
   expect(result).toReportError(
     2365,
-    `Operator '+' cannot be applied to types '() => number' and '1'`
+    `Operator '+' cannot be applied to types '() => number' and 'number'`
   );
 });
 
-//
-// 9) bind lazy dep + tuple mismatch (thunk expected first, but placed second)
-//
 test("bind lazy dep + tuple mismatch (thunk position/type)", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -246,19 +244,19 @@ test("bind lazy dep + tuple mismatch (thunk position/type)", async () => {
         return first + second();
       }
 
-      c.bind(Use);
+      c.bind(Use)();
     `,
   });
 
   expect(result).toReportError(
-    2345,
-    `Types of parameters 'first' and 'args_0' are incompatible`
+    2349,
+    `
+      This expression is not callable.
+      Type '{ type: "error"; message: "dependencies type mismatch (lazy ones must be thunks)"; dependent: never; dependencies: readonly ["IFoo", "IBar"]; }' has no call signatures
+    `
   );
 });
 
-//
-// 10) resolve eager token is value, not function
-//
 test("resolve eager token is value, not function", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -277,9 +275,6 @@ test("resolve eager token is value, not function", async () => {
   expect(result).toReportError(2349, `This expression is not callable`);
 });
 
-//
-// 11) assignMany forbids in-batch dependencies (surface by chaining .seal())
-//
 test("assignMany forbids in-batch dependencies", async () => {
   const result = await typecheck({
     "case.ts": `
@@ -305,9 +300,6 @@ test("assignMany forbids in-batch dependencies", async () => {
   );
 });
 
-//
-// 12) resolve multi-bind returns array (misused as string)
-//
 test("resolve multi-bind returns array (misuse as string)", async () => {
   const result = await typecheck({
     "case.ts": `

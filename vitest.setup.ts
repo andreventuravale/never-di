@@ -12,10 +12,6 @@ function flattenMessage(
   return ts.flattenDiagnosticMessageText(messageText, "\n");
 }
 
-function msgMatches(msg: string, messages: string[]): boolean {
-  return messages.every((pattern) => msg.includes(pattern));
-}
-
 function formatHost(): ts.FormatDiagnosticsHost {
   return {
     getCanonicalFileName: (f) => f,
@@ -26,10 +22,10 @@ function formatHost(): ts.FormatDiagnosticsHost {
 
 function format(diags: readonly ts.Diagnostic[]): string {
   try {
-    return ts.formatDiagnosticsWithColorAndContext(diags, formatHost());
+    return ts.formatDiagnostics(diags, formatHost());
   } catch {
     return diags
-      .map((d) => `TS${d.code}: ${flattenMessage(d.messageText)}`)
+      .map((d) => `TS-${d.code}: ${flattenMessage(d.messageText)}`)
       .join("\n");
   }
 }
@@ -38,29 +34,25 @@ expect.extend({
   toReportError(received: HasDiagnostics, code: number, message: string) {
     const diagnostics = received.diagnostics;
 
-    const matching = diagnostics.filter((d) => {
-      if (d.code !== code) return false;
+    const report = format(diagnostics);
 
-      const text = flattenMessage(d.messageText);
-
-      return msgMatches(
-        text,
-        message.split("\n").map((msg) => msg.trim())
-      );
-    });
-
-    const pass = matching.length > 0;
+    const pass =
+      diagnostics.some((d) => d.code === code) &&
+      message
+        .split("\n")
+        .map((line) => line.trim())
+        .every((line) => report.includes(line));
 
     return {
       pass,
       message: () =>
         pass
-          ? `Expected NOT to find TS${code} matching ${String(
+          ? `Expected NOT to find TS-${code} matching ${String(
               message
-            )}, but found:\n${format(matching)}`
-          : `Expected to find TS${code} matching ${String(
+            )}, but found:\n${report}`
+          : `Expected to find TS-${code} matching ${String(
               message
-            )}, but diagnostics were:\n${format(diagnostics)}`,
+            )}, but diagnostics were:\n${report}`,
     };
   },
 });
