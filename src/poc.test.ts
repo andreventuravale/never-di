@@ -11,7 +11,7 @@ test("poc", async () => {
   foo.lazy = true as const;
   foo.token = "foo" as const;
 
-  function foo(): T {
+  function foo(bar: T): T {
     return {
       say: () => "foo",
     };
