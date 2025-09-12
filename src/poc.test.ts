@@ -8,7 +8,6 @@ type T = {
 
 test("poc", async () => {
   foo.dependsOn = ["bar"] as const;
-  foo.lazy = true as const;
   foo.token = "foo" as const;
 
   function foo(bar: T): T {
@@ -18,7 +17,6 @@ test("poc", async () => {
   }
 
   bar.dependsOn = ["foo"] as const;
-  bar.lazy = true as const;
   bar.token = "bar" as const;
 
   function bar(foo: () => T): T {
@@ -42,7 +40,6 @@ test("poc", async () => {
 
 test("many", async () => {
   foo.dependsOn = ["bar"] as const;
-  foo.lazy = true as const;
   foo.token = "foo" as const;
 
   function foo(bar: T[]): T {
@@ -88,7 +85,6 @@ test("many", async () => {
 test("many hetero deps", async () => {
   foo.token = "foo" as const;
   foo.dependsOn = ["baz"] as const;
-  foo.lazy = true as const;
 
   function foo(baz: T[]): T {
     return {
@@ -179,7 +175,6 @@ test("assignMany passes when deps are provided outside the batch", () => {
     return { say: () => "a" };
   }
   a.dependsOn = ["b"] as const;
-  a.lazy = true as const;
   a.token = "a" as const;
 
   function b(): T {
@@ -228,7 +223,6 @@ test("assignMany passes when dep is outside the batch (lazy before)", () => {
     return { say: () => "a" };
   }
   a.dependsOn = ["b"] as const;
-  a.lazy = true as const;
   a.token = "a" as const;
 
   function b(): T {
@@ -274,14 +268,12 @@ test("same-token multi-bind ok (no self-deps), returns array", () => {
     return { say: () => "bar1" };
   }
   bar1.dependsOn = ["foo"] as const;
-  bar1.lazy = true as const;
   bar1.token = "bar" as const;
 
   function bar2(_: () => T): T {
     return { say: () => "bar2" };
   }
   bar2.dependsOn = ["foo"] as const;
-  bar2.lazy = true as const;
   bar2.token = "bar" as const;
 
   const bars = createContainerDraft()

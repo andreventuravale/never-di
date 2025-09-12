@@ -63,7 +63,6 @@ export interface Factory<T = any, Args extends any[] = any[]> extends Metadata {
 
 interface Metadata {
   readonly dependsOn?: readonly string[];
-  readonly lazy?: true;
   readonly token?: string;
 }
 
