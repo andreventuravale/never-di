@@ -107,41 +107,45 @@ function Foo(b: { bar: string }) {
 
 Bar.token = "Bar" as const;
 Bar.dependsOn = ["Foo"] as const;
-function Bar(getFoo: () => { foo: string }) {
-  return { bar: "bar->" + getFoo().foo };
+function Bar(foo: () => { foo: string }) {
+  return { bar: "bar->" + foo().foo };
 }
 
 const c = createContainerDraft()
+  .defineLazy(Foo)
   .assign(Foo)
-  .defineLazy(Bar)
   .assign(Bar)
   .seal();
 
-const foo = c.resolve("Foo");       // { foo: string }
-const getBar = c.resolve("Bar");    // () => { bar: string }
+const bar = c.resolve("Bar");
 
-console.log(foo.foo);
-console.log(getBar().bar);
+console.log(bar.bar);
 ```
 
-### The bind method
+### The bind method ( usually for side-effects )
 
 ```
 import { createContainerDraft } from "never-di";
 
-add.token = "add" as const;
-add.dependsOn = ["x", "y"] as const;
-function add(x: number, y: number): number {
-  return x + y;
+Foo.token = "Foo" as const;
+Foo.dependsOn = ["Bar"] as const;
+function Foo(b: { bar: string }) {
+  return { foo: "foo->" + b.bar };
 }
 
-const container = createContainerDraft()
-  .assign(() => 2).assign(() => 3)
-  .assign(add)
+Bar.dependsOn = ["Foo"] as const;
+function Bar(foo: () => { foo: string }) {
+  console.log({ bar: "bar->" + foo().foo });
+}
+
+const c = createContainerDraft()
+  .defineLazy(Foo)
+  .assign(Foo)
   .seal();
 
-const addFn = container.bind(add);
-console.log(addFn()); // 5
+const bar = c.bind(Bar);
+
+bar();
 ```
 
 ### Type safety

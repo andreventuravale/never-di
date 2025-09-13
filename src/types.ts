@@ -358,11 +358,13 @@ type CheckProcedure<
         unassigned_dependencies: UncoveredDeps<S, F>;
       };
 
+// Union of all tokens listed in dependsOn of F.
 type DepKeys<
   // F: type with dependsOn
   F extends Pick<Metadata, "dependsOn">
 > = F extends { dependsOn: infer D extends readonly string[] } ? D[number] : never;
 
+// Union of dependencies for a tuple of factories.
 type DepsOf<
   // Fs: tuple/array of factories
   Fs extends readonly Factory[]
@@ -546,28 +548,15 @@ type UncoveredDeps<
 >;
 
 // ============================================================================
-// In-batch dependency detection (assignMany) — RESTORED FOR TESTS
+// In-batch dependency detection (assignMany)
+// (Deduplicated: uses the earlier DepKeys/DepsOf definitions.)
 // ============================================================================
 
-// Union of all tokens listed in dependsOn of F.
-type DepKeys<
-  // F: type with dependsOn
-  F extends Pick<Metadata, "dependsOn">
-> = F extends { dependsOn: infer D extends readonly string[] } ? D[number] : never;
-
-// Union of dependencies for a tuple of factories.
-type DepsOf<
-  // Fs: tuple/array of factories
-  Fs extends readonly Factory[]
-> = DepKeys<Fs[number]>;
-
-// Dependencies that refer to tokens being introduced *within* Fs itself.
 type IntraBatchDeps<
   // Fs: tuple/array of factories
   Fs extends readonly Factory[]
 > = Extract<DepsOf<Fs>, TokensOf<Fs>>;
 
-// If such dependencies exist, forbid the batch; report conflicting tokens.
 type IntraBatchError<
   // Fs: tuple/array of factories
   Fs extends readonly Factory[]
