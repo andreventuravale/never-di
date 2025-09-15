@@ -1,12 +1,12 @@
 import { expect, test } from "vitest";
 
-import { createContainerDraft } from ".";
+import { createContainerDraft } from "..";
 
 type T = {
   say(): string;
 };
 
-test("poc", async () => {
+test("happy path", async () => {
   foo.dependsOn = ["bar"] as const;
   foo.token = "foo" as const;
 
