@@ -54,7 +54,7 @@ The draft exposes:
 
 ### Basics
 
-```
+```ts
 import { createContainerDraft } from "never-di";
 
 foo.token = "foo" as const;
@@ -78,7 +78,7 @@ console.log(container.resolve("bar")); // "bar(1)"
 
 ### Multi-binding
 
-```
+```ts
 import { createContainerDraft } from "never-di";
 
 h1.token = "handler" as const;
@@ -96,7 +96,7 @@ console.log(container.resolve("handler")); // ["h1", "h2"]
 
 ### Lazy dependencies ( breaking cycles )
 
-```
+```ts
 import { createContainerDraft } from "never-di";
 
 Foo.token = "Foo" as const;
@@ -124,7 +124,7 @@ console.log(bar.bar);
 
 ### The bind method ( usually for side-effects )
 
-```
+```ts
 import { createContainerDraft } from "never-di";
 
 Foo.token = "Foo" as const;
